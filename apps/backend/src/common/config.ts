@@ -10,6 +10,8 @@ export class Config {
   static readonly DB_NAME: string = process.env.DB_NAME || 'ticket_booking';
   static readonly CLIENT_URL: string = process.env.CLIENT_URL || 'http://localhost:3000';
 
+  static readonly REDIS_URL: string = process.env.REDIS_URL || 'redis://localhost:6379';
+
   static readonly NODE_ENV: string = process.env.NODE_ENV || 'development';
   static get isDevelopment(): boolean {
     return Config.NODE_ENV === 'development';
