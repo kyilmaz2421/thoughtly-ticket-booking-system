@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button, Descriptions, Spin, Tag, Typography } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 
-import { useCreateReservation, useCurrentUser } from "@/hooks/useCreateBooking";
+import { useCancelReservation } from "@/hooks/useCancelReservation";
+import { useCurrentUser } from "@/hooks/useCreateBooking";
+import { useCreateReservation } from "@/hooks/useCreateReservation";
 import { useEvent } from "@/hooks/useEvent";
 import { Ticket } from "@/services/events";
 import { BookingModal } from "./BookingModal";
@@ -26,6 +28,7 @@ export function EventDetailPage({ id }: { id: string }) {
   const { data: currentUser } = useCurrentUser();
   const { data: event, isLoading } = useEvent(id);
   const createReservation = useCreateReservation();
+  const cancelReservation = useCancelReservation();
 
   function handleBook(ticket: Ticket) {
     if (!currentUser) return;
@@ -35,6 +38,18 @@ export function EventDetailPage({ id }: { id: string }) {
       userId: currentUser.id,
       ticketIds: [ticket.id],
     });
+  }
+
+  function handleCancel() {
+    const reservation = createReservation.data;
+    if (reservation && currentUser) {
+      cancelReservation.mutate({
+        reservationToken: reservation.reservationToken,
+        body: { ticketIds: reservation.ticketIds },
+      });
+    }
+    setBookingTicket(null);
+    createReservation.reset();
   }
 
   if (isLoading) {
@@ -138,11 +153,10 @@ export function EventDetailPage({ id }: { id: string }) {
 
       <BookingModal
         ticket={bookingTicket}
-        currentUser={currentUser}
         reservation={createReservation.data}
         isReserving={createReservation.isPending}
         reservationError={createReservation.error as Error | null}
-        onClose={() => setBookingTicket(null)}
+        onClose={handleCancel}
         onConfirmed={() => router.push("/")}
       />
     </div>

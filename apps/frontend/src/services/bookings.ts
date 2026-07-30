@@ -16,8 +16,11 @@ export interface Reservation {
   expiresAt: string; // ISO — drives the countdown timer
 }
 
+export interface CancelReservationRequest {
+  ticketIds: string[];
+}
+
 export interface ConfirmBookingRequest {
-  userId: string;
   ticketIds: string[];
   email: string;
   payment: { cardNumber: string; expiry: string; cvv: string };
@@ -42,6 +45,13 @@ export const bookingsService = {
   createReservation: (body: CreateReservationRequest) =>
     apiFetch<Reservation>("/bookings/reservations", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  cancelReservation: (reservationToken: string, body: CancelReservationRequest) =>
+    apiFetch<void>(`/bookings/reservations/${reservationToken}`, {
+      method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),

@@ -18,7 +18,6 @@ import { ClockCircleOutlined } from "@ant-design/icons";
 import { useConfirmBooking } from "@/hooks/useCreateBooking";
 import { Reservation } from "@/services/bookings";
 import { Ticket } from "@/services/events";
-import { CurrentUser } from "@/services/users";
 
 const { Text } = Typography;
 
@@ -39,7 +38,6 @@ function secondsUntil(isoDate: string) {
 
 interface Props {
   ticket: Ticket | null;
-  currentUser: CurrentUser | undefined;
   reservation: Reservation | undefined;
   isReserving: boolean;
   reservationError: Error | null;
@@ -49,7 +47,6 @@ interface Props {
 
 export function BookingModal({
   ticket,
-  currentUser,
   reservation,
   isReserving,
   reservationError,
@@ -83,11 +80,10 @@ export function BookingModal({
     expiry: string;
     cvv: string;
   }) {
-    if (!ticket || !reservation || !currentUser) return;
+    if (!ticket || !reservation) return;
     confirmBooking.mutate({
       reservationToken: reservation.reservationToken,
       body: {
-        userId: currentUser.id,
         ticketIds: [ticket.id],
         email: values.email,
         payment: {
