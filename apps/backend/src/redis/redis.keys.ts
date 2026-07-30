@@ -19,11 +19,20 @@ export const RedisKey = {
   ticketReserved: (ticketId: string): TypedKey<TicketReservedValue> => ({ key: `ticket:reserved:${ticketId}` }),
 } as const;
 
+// Value format: "userId:reservationToken:expiresAt"
+// Memory cost per key: ~36 (userId UUID) + 1 + ~36 (token UUID) + 1 + 24 (ISO date) ≈ 98 bytes of value.
+// At 100k concurrent holds: ~10MB — negligible. Single GET reads all three fields in one round-trip,
+// so the idempotency path costs zero extra Redis calls compared to storing userId+token alone.
 export const RedisValue = {
-  ticketReserved: (userId: string, reservationToken: string): TicketReservedValue =>
-    `${userId}:${reservationToken}` as TicketReservedValue,
-  parseTicketReserved: (value: TicketReservedValue): { userId: string; reservationToken: string } => {
-    const [userId, reservationToken] = value.split(':');
-    return { userId, reservationToken };
+  ticketReserved: (userId: string, reservationToken: string, expiresAt: string): TicketReservedValue =>
+    `${userId}:${reservationToken}:${expiresAt}` as TicketReservedValue,
+  parseTicketReserved: (value: TicketReservedValue): { userId: string; reservationToken: string; expiresAt: string } => {
+    // Split on first two colons only — expiresAt is an ISO string which itself contains colons
+    const firstColon = value.indexOf(':');
+    const secondColon = value.indexOf(':', firstColon + 1);
+    const userId = value.slice(0, firstColon);
+    const reservationToken = value.slice(firstColon + 1, secondColon);
+    const expiresAt = value.slice(secondColon + 1);
+    return { userId, reservationToken, expiresAt };
   },
 } as const;

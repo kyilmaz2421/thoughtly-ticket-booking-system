@@ -7,15 +7,28 @@ import { DEFAULT_RESERVATION_TTL_SECONDS, TypedKey } from './redis.keys';
 
 // Nominal typing shim for TypeScript's structural type system.
 const SET_NX_MANY_SCRIPT = `
+  local conflicts = {}
+
+  -- 1. Check all keys — GET returns nil if missing, so one call per key instead of EXISTS + GET
   for i = 1, #KEYS do
-    if redis.call('EXISTS', KEYS[i]) == 1 then
-      return 0
+    local existing = redis.call('GET', KEYS[i])
+    if existing then
+      table.insert(conflicts, existing)
     end
   end
-  for i = 1, #KEYS do
-    redis.call('SET', KEYS[i], ARGV[1], 'EX', ARGV[2])
+
+  -- 2. If any conflicts exist, return them immediately without setting anything
+  if #conflicts > 0 then
+    return conflicts
   end
-  return 1
+
+  -- 3. If zero conflicts, safe to write all keys atomically
+  for i = 1, #KEYS do
+    redis.call('SET', KEYS[i], ARGV[1], 'EX', tonumber(ARGV[2]))
+  end
+
+  -- Return an empty array to signal total success
+  return {}
 `;
 
 @Injectable()
@@ -23,15 +36,18 @@ export class RedisService {
   private readonly client = new Redis(Config.REDIS_URL);
 
   // Atomic all-or-nothing bulk SETNX via Lua.
-  // Returns true if all keys were claimed, false if any was already taken (nothing written).
+  // Returns [] on success (all keys written).
+  // Returns the conflicting stored values when any key already existed (nothing written).
   async setNxMany<V extends string>(
     keyObjs: TypedKey<V>[],
     value: V,
     ttlSeconds = DEFAULT_RESERVATION_TTL_SECONDS,
-  ): Promise<boolean> {
+  ): Promise<V[]> {
+    if (keyObjs.length === 0) return [];
+
     const keys = keyObjs.map((k) => k.key);
     const result = await this.client.eval(SET_NX_MANY_SCRIPT, keys.length, ...keys, value, String(ttlSeconds));
-    return result === 1;
+    return (result as string[]) as V[];
   }
 
   // Returns null if the key does not exist or has expired.
@@ -49,6 +65,7 @@ export class RedisService {
     const result = await this.client.set(keyObj.key, value, 'EX', ttlSeconds, 'NX');
     return result === 'OK';
   }
+
 
   async del(...keyObjs: TypedKey<unknown>[]): Promise<void> {
     await this.client.del(...keyObjs.map((k) => k.key));
