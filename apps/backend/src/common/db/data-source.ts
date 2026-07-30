@@ -1,10 +1,11 @@
-import "reflect-metadata";
-import path from "path";
-import { DataSource, DataSourceOptions } from "typeorm";
-import { Config } from "./config";
+import 'reflect-metadata';
+import path from 'path';
+
+import { Config } from 'src/common/config';
+import { DataSource, DataSourceOptions } from 'typeorm';
 
 export const dataSourceOptions: DataSourceOptions = {
-  type: "postgres",
+  type: 'postgres',
   host: Config.DB_HOST,
   port: Config.DB_PORT,
   username: Config.DB_USER,
@@ -12,12 +13,12 @@ export const dataSourceOptions: DataSourceOptions = {
   database: Config.DB_NAME,
   synchronize: false,
   logging: Config.isDevelopment,
-  entities: [path.join(__dirname, "**", "*.entity.{ts,js}")],
+  entities: [path.join(__dirname, '..', '..', '**', '*.entity.{ts,js}')],
   migrations: [
-    path.join(__dirname, "..", "migrations", "schema", "*.{ts,js}"),
-    path.join(__dirname, "..", "migrations", "data", "*.{ts,js}"),
+    path.join(__dirname, '..', '..', '..', 'migrations', 'schema', '*.{ts,js}'),
+    path.join(__dirname, '..', '..', '..', 'migrations', 'data', '*.{ts,js}'),
   ],
-  migrationsTableName: "typeorm_migrations",
+  migrationsTableName: 'typeorm_migrations',
 };
 
 // Used only by the TypeORM CLI (migration:generate, migration:run, etc.)
