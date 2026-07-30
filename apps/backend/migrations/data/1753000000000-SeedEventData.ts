@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
+import { User } from '../../src/users/entities/user.entity';
 import { EventHost } from '../../src/hosts/entities/event-host.entity';
 import { Venue } from '../../src/venues/entities/venue.entity';
 import { Event, EventType } from '../../src/events/entities/event.entity';
@@ -29,6 +30,17 @@ function buildTickets(event: Event, vip: number, fr: number, ga: number): Partia
 export class SeedEventData1753000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const m = queryRunner.manager;
+
+    // -----------------------------------------------------------------------
+    // Users (demo — stand-ins for real auth)
+    // -----------------------------------------------------------------------
+    await m.save(User, [
+      { name: 'Alice Chen',    email: 'alice@example.com'   },
+      { name: 'Bob Martinez',  email: 'bob@example.com'     },
+      { name: 'Carol Johnson', email: 'carol@example.com'   },
+      { name: 'David Kim',     email: 'david@example.com'   },
+      { name: 'Eva Williams',  email: 'eva@example.com'     },
+    ]);
 
     // -----------------------------------------------------------------------
     // Venues
@@ -141,5 +153,6 @@ export class SeedEventData1753000000000 implements MigrationInterface {
     await queryRunner.query(`DELETE FROM event;`);
     await queryRunner.query(`DELETE FROM event_host;`);
     await queryRunner.query(`DELETE FROM venue;`);
+    await queryRunner.query(`DELETE FROM "user";`);
   }
 }

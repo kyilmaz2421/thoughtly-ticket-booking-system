@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityNotFoundError, Repository } from 'typeorm';
 
 import { User } from './entities/user.entity';
 
@@ -24,6 +24,7 @@ export class UsersController {
   @Get('me')
   async getMe(): Promise<{ id: string; name: string; email: string }> {
     const users = await this.userRepository.find();
+    if (users.length === 0) throw new EntityNotFoundError(User, {});
     const user = users[Math.floor(Math.random() * users.length)];
     return { id: user.id, name: user.name, email: user.email };
   }
