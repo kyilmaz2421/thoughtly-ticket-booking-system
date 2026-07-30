@@ -63,9 +63,11 @@ When an event is created, one row per physical ticket is generated from the venu
 
 Availability is inferred by whether a `bookings` row references a ticket — no status flag. The `UNIQUE` constraint on `bookings.ticket_id` is the hard database-level guarantee: two bookings for the same ticket are physically impossible. During the booking flow we use `SELECT ... FOR UPDATE SKIP LOCKED` to atomically claim a ticket — concurrent requests skip locked rows rather than queueing, which scales without contention.
 
-### Holds via Redis (planned)
+### Payment records
 
-A hold/reservation layer will be implemented in Redis: a TTL key reserves a ticket during checkout, the Postgres booking row is written on payment confirmation. Redis handles the UX hold; Postgres handles permanent correctness.
+`payment_record` rows are written only on payment success — one row per ticket in the booking. There is no FAILED status. If payment fails, the surrounding `@Transactional()` rolls back the entire operation: the booking rows never commit and no payment record is written. The database is left completely clean, as if the confirm attempt never happened. This means the presence of a `payment_record` is itself the signal that a booking completed — no status column needed.
+
+Each record stores `user_id`, `booking_id`, `price_cents` (the total charge across all tickets in that batch), and the processor-returned `transaction_id`. Raw card details (number, CVV, expiry, postal code) are passed through to the payment processor but never persisted — PCI-DSS compliance.
 
 ### Other trade-offs
 
@@ -103,3 +105,35 @@ src/
 - `Venue`, `User`, and `EventHost` have no controllers yet — they are supporting entities imported by other modules. Their modules exist so TypeORM repositories can be injected via `forFeature()`.
 - Request DTOs (create/update input shapes) always live in the module that receives them. Response DTOs live in the module that owns the entity — `VenueDto` lives in `venues/dto/` and is imported by `events/` because the venue module is the authoritative source for how a venue is serialized.
 - `PaymentService` lives inside `bookings/` since payment is a step in the booking flow, not a standalone feature.
+
+
+### Event Reservation Holds Flow
+
+The booking flow is split into three coordinated stages, all held together by a Redis TTL reservation system.
+
+**1. Reading available tickets**
+
+When a user opens an event page, `GET /v1/events/:id/tickets` returns only tickets that are neither booked nor currently held. The query excludes permanently booked tickets at the database level with a `NOT EXISTS (SELECT 1 FROM booking WHERE ticket_id = ticket.id)` subquery. Then, in a single Redis `MGET` call across all returned rows, any ticket whose key exists in Redis (i.e. is currently reserved by someone) is filtered out before the response is sent. The result is a list of tickets that are genuinely available right now.
+
+**2. Reserving a ticket — the Redis hold**
+
+When a user clicks Book, a `POST /v1/bookings/reservations` request runs an atomic Lua script against Redis that performs an all-or-nothing `SETNX` across all requested ticket keys. Each key is set with a TTL equal to the global hold window (e.g. 5 minutes). The stored value encodes `userId:reservationToken:expiresAt` in a single string — no secondary lookups needed.
+
+**All tickets in a single reservation share the same `reservationToken`.** Each ticket gets its own Redis key (`ticket:reserved:{ticketId}`), but the value written under every key is identical. This means the token alone is sufficient to verify ownership across the entire group — cancel and confirm both use it as the single proof of ownership rather than checking each ticket independently. It also means a multi-ticket booking is cancelled atomically: one token covers all keys.
+
+The hold is immutable once created. The `expiresAt` timestamp is embedded in the Redis value at write time and is never reset. If the same user retries the same reservation (e.g. due to a network error or React StrictMode double-fire), the Lua script detects the conflict and returns the existing value, including the original `expiresAt`. The caller receives the same token and expiry they would have gotten on first write. This means the hold cannot be extended by re-requesting it — the timer started when the key was first set and counts down regardless.
+
+**3. Confirming the booking — closing the hold**
+
+When the user submits payment, `POST /v1/bookings/reservations/:token/confirm` validates that every Redis key still exists and belongs to this user and token. If any key has expired or belongs to a different user, the request is rejected. Once ownership is confirmed, the backend runs `SELECT … FOR UPDATE SKIP LOCKED` on the tickets to guard against concurrent confirms.
+
+The confirm handler is wrapped in `@Transactional()`. Inside that transaction:
+
+1. **Booking rows are inserted first** — one row per ticket, before any payment attempt.
+2. **Payment is charged** — the total price across all tickets is sent to the processor as a single charge. All payment fields (card number, expiry, CVV, postal code) are passed through to the processor end-to-end but never stored.
+3. **On success** — one `payment_record` row is written per booking, referencing the processor's transaction ID. The transaction commits. The tickets are now permanently booked.
+4. **On failure** — the processor throws, the transaction rolls back, and the booking rows inserted in step 1 are discarded. No `payment_record` is written. The database is left exactly as it was before the confirm attempt.
+
+Whether the payment succeeds or fails, the Redis keys are deleted in a `finally` block — the hold is always released, so the user does not stay locked out of re-trying.
+
+After a successful confirm, the ticket disappears from both systems: the `NOT EXISTS` subquery excludes it from future `GET /tickets` responses, and the Redis key is gone. The ticket is no longer visible to anyone.
