@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { paginate } from '../common/db/paginate.util';
+import { RedisKey } from '../redis/redis.keys';
+import { RedisService } from '../redis/redis.service';
 
 import { EventDetailDto, EventSummaryDto, PaginatedEventsDto } from './dto/event.dto';
 import { PaginatedTicketsDto, TicketDto } from './dto/ticket.dto';
@@ -18,6 +20,7 @@ export class EventsService {
     private readonly eventRepository: Repository<Event>,
     @InjectRepository(Ticket)
     private readonly ticketRepository: Repository<Ticket>,
+    private readonly redisService: RedisService,
   ) {}
 
   async findAll(cursor?: string, limit = DEFAULT_LIMIT): Promise<PaginatedEventsDto> {
@@ -94,7 +97,16 @@ export class EventsService {
       );
     }
 
-    const { page, hasMore, nextCursor } = paginate(await qb.getMany(), take, (last) =>
+    const dbTickets = await qb.getMany();
+
+    // Single MGET round-trip instead of N individual GETs.
+    // We check all returned rows (including the +1 lookahead) so pagination counts stay correct.
+    const heldFlags = await this.redisService.mget(
+      dbTickets.map((t) => RedisKey.ticketReserved(t.id)),
+    );
+    const available = dbTickets.filter((_, i) => heldFlags[i] === null);
+
+    const { page, hasMore, nextCursor } = paginate(available, take, (last) =>
       PaginatedTicketsDto.encodeCursor({ section: last.section, seatNumber: last.seatNumber }),
     );
 

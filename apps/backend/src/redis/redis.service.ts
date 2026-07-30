@@ -55,6 +55,13 @@ export class RedisService {
     return this.client.get(keyObj.key) as Promise<V | null>;
   }
 
+  // Single round-trip bulk GET — returns values in the same order as the input keys.
+  // Null means the key does not exist or has expired.
+  async mget<V extends string>(keyObjs: TypedKey<V>[]): Promise<(V | null)[]> {
+    if (keyObjs.length === 0) return [];
+    return this.client.mget(...keyObjs.map((k) => k.key)) as Promise<(V | null)[]>;
+  }
+
   // SET key value EX ttl NX — only sets if key does not already exist.
   // Returns true if the key was set, false if it already existed (another reservation holds it).
   async setNx<V extends string>(
