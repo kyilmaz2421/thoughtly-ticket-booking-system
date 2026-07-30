@@ -9,7 +9,7 @@ import { Ticket } from '../events/entities/ticket.entity';
 import { DEFAULT_RESERVATION_TTL_SECONDS, RedisKey, RedisValue } from '../redis/redis.keys';
 import { RedisService } from '../redis/redis.service';
 
-import { BookingConfirmationDto, ConfirmBookingDto, CreateReservationDto, ReservationDto } from './dto/booking.dto';
+import { BookingConfirmationDto, CancelReservationDto, ConfirmBookingDto, CreateReservationDto, ReservationDto } from './dto/booking.dto';
 import { Booking, PaymentStatus } from './entities/booking.entity';
 import { PaymentService } from './payment.service';
 
@@ -33,6 +33,10 @@ export class BookingsService {
 
     if (alreadyBooked > 0) throw new ConflictException('One or more tickets are already booked');
 
+    // All tickets in this reservation share the same reservationToken and expiresAt.
+    // Each ticket gets its own Redis key (ticket:reserved:{ticketId}) but the stored value is identical.
+    // This means the token alone is sufficient to verify ownership across the entire group —
+    // cancel and confirm use it as the single proof of ownership rather than checking per-ticket userId.
     const reservationToken = randomUUID();
     const expiresAt = new Date(Date.now() + DEFAULT_RESERVATION_TTL_SECONDS * 1000).toISOString();
     const value = RedisValue.ticketReserved(dto.userId, reservationToken, expiresAt);
@@ -58,18 +62,36 @@ export class BookingsService {
     return { reservationToken, userId: dto.userId, ticketIds: dto.ticketIds, expiresAt };
   }
 
+  async cancelReservation(reservationToken: string, dto: CancelReservationDto): Promise<void> {
+    const ticketKeys = dto.ticketIds.map(RedisKey.ticketReserved);
+    const storedValues = await this.redisService.mget(ticketKeys);
+
+    // The reservationToken is the ownership proof — all tickets in a reservation share the same token.
+    // Only delete keys whose stored token matches; ignore expired or foreign keys silently.
+    const keysToDelete = ticketKeys.filter((_, i) => {
+      const stored = storedValues[i];
+      if (!stored) return false;
+      return RedisValue.parseTicketReserved(stored).reservationToken === reservationToken;
+    });
+
+    if (keysToDelete.length > 0) await this.redisService.del(...keysToDelete);
+  }
+
   @Transactional()
   async confirmBooking(reservationToken: string, dto: ConfirmBookingDto): Promise<BookingConfirmationDto> {
-    // Step 1: Validate Redis ownership — every key must exist and belong to this user+token
+    // Step 1: Validate Redis ownership — the token is the proof; userId is read from the stored value.
     const ticketKeys = dto.ticketIds.map(RedisKey.ticketReserved);
-    const storedValues = await Promise.all(ticketKeys.map((k) => this.redisService.get(k)));
+    const storedValues = await this.redisService.mget(ticketKeys);
 
-    for (const stored of storedValues) {
-      if (stored === null) throw new GoneException('Reservation has expired — please reserve again');
-      const { userId, reservationToken: storedToken } = RedisValue.parseTicketReserved(stored);
-      if (userId !== dto.userId || storedToken !== reservationToken)
-        throw new ForbiddenException('Reservation does not belong to this user');
-    }
+    if (storedValues.some((s) => s === null))
+      throw new GoneException('Reservation has expired — please reserve again');
+
+    const parsed = storedValues.map((s) => RedisValue.parseTicketReserved(s!));
+
+    if (parsed.some((p) => p.reservationToken !== reservationToken))
+      throw new ForbiddenException('Reservation does not belong to this token');
+
+    const { userId } = parsed[0];
 
     // Step 2: SELECT FOR UPDATE SKIP LOCKED + NOT EXISTS guard
     // SKIP LOCKED: if another transaction is mid-confirm on the same ticket, skip it (returns fewer rows → 409)
@@ -93,7 +115,7 @@ export class BookingsService {
       // Step 4: INSERT one booking row per ticket — only reached on payment success
       const bookings: Booking[] = this.bookingRepository.create(
         tickets.map((ticket) => ({
-          userId: dto.userId,
+          userId: userId!,
           ticketId: ticket.id,
           paymentStatus: PaymentStatus.SUCCESS,
         })),
@@ -104,7 +126,7 @@ export class BookingsService {
         transactionId,
         reservationToken,
         ticketIds: dto.ticketIds,
-        userId: dto.userId,
+        userId: userId!,
         email: dto.email,
         status: 'confirmed',
         confirmedAt: new Date().toISOString(),

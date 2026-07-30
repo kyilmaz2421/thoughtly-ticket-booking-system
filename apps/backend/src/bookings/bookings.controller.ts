@@ -1,7 +1,7 @@
-import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 
 import { BookingsService } from './bookings.service';
-import { BookingConfirmationDto, ConfirmBookingDto, CreateReservationDto, ReservationDto } from './dto/booking.dto';
+import { BookingConfirmationDto, CancelReservationDto, ConfirmBookingDto, CreateReservationDto, ReservationDto } from './dto/booking.dto';
 
 @Controller('bookings')
 export class BookingsController {
@@ -10,6 +10,15 @@ export class BookingsController {
   @Post('reservations')
   createReservation(@Body() dto: CreateReservationDto): Promise<ReservationDto> {
     return this.bookingsService.createReservation(dto);
+  }
+
+  @Delete('reservations/:reservationToken')
+  @HttpCode(204)
+  cancelReservation(
+    @Param('reservationToken', ParseUUIDPipe) reservationToken: string,
+    @Body() dto: CancelReservationDto,
+  ): Promise<void> {
+    return this.bookingsService.cancelReservation(reservationToken, dto);
   }
 
   @Post('reservations/:reservationToken/confirm')

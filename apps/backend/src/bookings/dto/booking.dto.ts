@@ -60,15 +60,19 @@ export class ConfirmBookingDto {
   @IsUUID('all', { each: true })
   ticketIds: string[];
 
-  @IsUUID()
-  userId: string;
-
   @IsEmail()
   email: string;
 
   @ValidateNested()
   @Type(() => PaymentDto)
   payment: PaymentDto;
+}
+
+export class CancelReservationDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('all', { each: true })
+  ticketIds: string[];
 }
 
 export class BookingConfirmationDto {
