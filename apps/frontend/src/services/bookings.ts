@@ -23,7 +23,12 @@ export interface CancelReservationRequest {
 export interface ConfirmBookingRequest {
   ticketIds: string[];
   email: string;
-  payment: { cardNumber: string; expiry: string; cvv: string };
+  payment: {
+    cardNumber: string;
+    expiry: string;
+    cvv: string;
+    postalCode: string;
+  };
 }
 
 export interface BookingConfirmation {

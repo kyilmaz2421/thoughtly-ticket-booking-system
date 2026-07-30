@@ -81,6 +81,7 @@ export function BookingModal({
     cardNumber: string;
     expiry: string;
     cvv: string;
+    postalCode: string;
   }) {
     if (!ticket || !reservation) return;
     confirmBooking.mutate({
@@ -92,6 +93,7 @@ export function BookingModal({
           cardNumber: values.cardNumber,
           expiry: values.expiry,
           cvv: values.cvv,
+          postalCode: values.postalCode,
         },
       },
     });
@@ -258,6 +260,13 @@ export function BookingModal({
                 <Input placeholder="123" maxLength={4} />
               </Form.Item>
             </div>
+            <Form.Item
+              label="Postal / ZIP Code"
+              name="postalCode"
+              rules={[{ required: true, message: "Required" }]}
+            >
+              <Input placeholder="10001" maxLength={10} />
+            </Form.Item>
 
             {/* Payment error — shows the actual message from MockStripeError */}
             {confirmError && (

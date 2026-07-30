@@ -52,6 +52,11 @@ export class PaymentDto {
   @MaxLength(4)
   @Matches(/^\d{3,4}$/, { message: 'cvv must be 3 or 4 digits' })
   cvv: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(10)
+  postalCode: string;
 }
 
 export class ConfirmBookingDto {

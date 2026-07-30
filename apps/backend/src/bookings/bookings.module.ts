@@ -8,10 +8,11 @@ import { UsersModule } from '../users/users.module';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { Booking } from './entities/booking.entity';
+import { PaymentRecord } from './entities/payment-record.entity';
 import { PaymentService } from './payment.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Booking]), EventsModule, UsersModule, RedisModule],
+  imports: [TypeOrmModule.forFeature([Booking, PaymentRecord]), EventsModule, UsersModule, RedisModule],
   controllers: [BookingsController],
   providers: [BookingsService, PaymentService],
   exports: [BookingsService],

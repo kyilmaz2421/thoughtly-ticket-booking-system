@@ -16,7 +16,7 @@ import {
   CreateReservationDto,
   ReservationDto,
 } from './dto/booking.dto';
-import { Booking, PaymentStatus } from './entities/booking.entity';
+import { Booking } from './entities/booking.entity';
 import { PaymentService } from './payment.service';
 
 @Injectable()
@@ -112,26 +112,30 @@ export class BookingsService {
       throw new ConflictException('One or more tickets are already booked or currently being processed');
 
     try {
-      // Step 3: Charge then INSERT — finally releases the Redis hold in all outcomes.
-      // On failure: payment throws, INSERT is never reached, transaction rolls back, hold is freed.
-      // On success: INSERT commits, hold is freed.
-      const { transactionId } = await this.paymentService.executePayment();
-
-      // Step 4: INSERT one booking row per ticket — only reached on payment success
+      // Step 3: INSERT booking rows first, then charge.
+      // @Transactional() wraps the entire method — if executePayment() throws,
+      // the transaction rolls back and these booking rows are never committed.
       const bookings: Booking[] = this.bookingRepository.create(
-        tickets.map((ticket) => ({
-          userId: userId,
-          ticketId: ticket.id,
-          paymentStatus: PaymentStatus.SUCCESS,
-        })),
+        tickets.map((ticket) => ({ userId, ticketId: ticket.id })),
       );
       await this.bookingRepository.save(bookings);
+
+      // Step 4: Charge the total across all bookings — when this throws, the transaction
+      // fails and all booking rows roll back automatically (@Transactional).
+      // One PaymentRecord row is written per booking on success.
+      const { transactionId } = await this.paymentService.executePayment(
+        // Build a price map from tickets
+        tickets.map((ticket, i) => ({ id: bookings[i].id, priceCents: ticket.priceCents })),
+        userId,
+        dto.payment,
+      );
+
       return {
         bookingIds: bookings.map((b) => b.id),
         transactionId,
         reservationToken,
         ticketIds: dto.ticketIds,
-        userId: userId,
+        userId,
         email: dto.email,
         status: 'confirmed',
         confirmedAt: new Date().toISOString(),
