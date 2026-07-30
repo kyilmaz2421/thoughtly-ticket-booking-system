@@ -1,4 +1,4 @@
-import { apiFetch } from './api-client';
+import { apiFetch } from "./api-client";
 
 export interface CurrentUser {
   id: string;
@@ -12,5 +12,5 @@ export interface CurrentUser {
 // In a real app this would be derived from an auth token, not fetched.
 // ---------------------------------------------------------------------------
 export const usersService = {
-  getMe: () => apiFetch<CurrentUser>('/users/me'),
+  getMe: () => apiFetch<CurrentUser>("/users/me"),
 };

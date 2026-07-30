@@ -1,4 +1,4 @@
-import { apiFetch } from './api-client';
+import { apiFetch } from "./api-client";
 
 export interface VenueSummary {
   id: string;
@@ -68,16 +68,21 @@ const DEFAULT_PAGE_SIZE = 10;
 export const eventsService = {
   getAll: (cursor?: string, limit = DEFAULT_PAGE_SIZE) => {
     const params = new URLSearchParams({ limit: String(limit) });
-    if (cursor) params.set('cursor', cursor);
+    if (cursor) params.set("cursor", cursor);
     return apiFetch<PaginatedEvents>(`/events?${params}`);
   },
 
   getOne: (id: string) => apiFetch<EventDetail>(`/events/${id}`),
 
-  getTickets: (eventId: string, section?: string, cursor?: string, limit = DEFAULT_PAGE_SIZE) => {
+  getTickets: (
+    eventId: string,
+    section?: string,
+    cursor?: string,
+    limit = DEFAULT_PAGE_SIZE,
+  ) => {
     const params = new URLSearchParams({ limit: String(limit) });
-    if (section) params.set('section', section);
-    if (cursor) params.set('cursor', cursor);
+    if (section) params.set("section", section);
+    if (cursor) params.set("cursor", cursor);
     return apiFetch<PaginatedTickets>(`/events/${eventId}/tickets?${params}`);
   },
 };

@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/v1';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/v1";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, init);
@@ -81,23 +81,32 @@ export interface BookingConfirmation {
   ticketId: string;
   name: string;
   email: string;
-  status: 'confirmed';
+  status: "confirmed";
   confirmedAt: string;
 }
 
 export const api = {
   getEvents: (cursor?: string, limit = 10) => {
     const params = new URLSearchParams({ limit: String(limit) });
-    if (cursor) params.set('cursor', cursor);
+    if (cursor) params.set("cursor", cursor);
     return apiFetch<PaginatedEvents>(`/events?${params}`);
   },
   getEvent: (id: string) => apiFetch<EventDetail>(`/events/${id}`),
   createBooking: (body: CreateBookingRequest) =>
-    apiFetch<BookingConfirmation>('/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
-  getTickets: (eventId: string, section?: string, cursor?: string, limit = 10) => {
+    apiFetch<BookingConfirmation>("/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  getTickets: (
+    eventId: string,
+    section?: string,
+    cursor?: string,
+    limit = 10,
+  ) => {
     const params = new URLSearchParams({ limit: String(limit) });
-    if (section) params.set('section', section);
-    if (cursor) params.set('cursor', cursor);
+    if (section) params.set("section", section);
+    if (cursor) params.set("cursor", cursor);
     return apiFetch<PaginatedTickets>(`/events/${eventId}/tickets?${params}`);
   },
 };

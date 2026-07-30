@@ -1,4 +1,4 @@
-import { apiFetch } from './api-client';
+import { apiFetch } from "./api-client";
 
 // ---------------------------------------------------------------------------
 // Request / Response types — mirror backend DTOs
@@ -29,7 +29,7 @@ export interface BookingConfirmation {
   ticketIds: string[];
   userId: string;
   email: string;
-  status: 'confirmed';
+  status: "confirmed";
   confirmedAt: string;
 }
 
@@ -39,16 +39,19 @@ export interface BookingConfirmation {
 
 export const bookingsService = {
   createReservation: (body: CreateReservationRequest) =>
-    apiFetch<Reservation>('/bookings/reservations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    apiFetch<Reservation>("/bookings/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
 
   confirmBooking: (reservationToken: string, body: ConfirmBookingRequest) =>
-    apiFetch<BookingConfirmation>(`/bookings/reservations/${reservationToken}/confirm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
+    apiFetch<BookingConfirmation>(
+      `/bookings/reservations/${reservationToken}/confirm`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
 };
