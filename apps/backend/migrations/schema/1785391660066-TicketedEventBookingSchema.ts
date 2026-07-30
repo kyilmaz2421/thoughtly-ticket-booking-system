@@ -49,6 +49,7 @@ export class TicketedEventBookingSchema1785391660066 implements MigrationInterfa
                 "event_id" uuid NOT NULL,
                 "section" character varying(50) NOT NULL,
                 "seat_number" integer NOT NULL,
+                "price_cents" integer NOT NULL,
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 CONSTRAINT "ticket_event_id_section_seat_number_uq" UNIQUE ("event_id", "section", "seat_number"),
                 CONSTRAINT "ticket_section_chk" CHECK (section IN ('VIP', 'Front Row', 'GA')),

@@ -35,4 +35,10 @@ export class Ticket extends WithCreatedAt {
 
   @Column({ type: 'int', name: 'seat_number', nullable: false })
   seatNumber: number;
+
+  // Even we know the prices are pre-determined by section
+  // In a real ticket booking system the price would exist on the ticket
+  // (or atleast derived from ticket and other factors for dynamic pricing)
+  @Column({ type: 'int', name: 'price_cents', nullable: false })
+  priceCents: number;
 }
