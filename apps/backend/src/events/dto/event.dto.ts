@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
+import { decodeCursor, encodeCursor } from '../../common/db/paginate.util';
 import { BaseDto } from '../../common/dto/base.dto';
 import { EventHostDto } from '../../hosts/dto/event-host.dto';
 import { VenueDetailDto, VenueSummaryDto } from '../../venues/dto/venue.dto';
@@ -94,10 +95,10 @@ export class PaginatedEventsDto {
   hasMore: boolean;
 
   static encodeCursor(cursor: EventCursor): string {
-    return Buffer.from(JSON.stringify(cursor)).toString('base64url');
+    return encodeCursor(cursor);
   }
 
   static decodeCursor(token: string): EventCursor {
-    return JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as EventCursor;
+    return decodeCursor<EventCursor>(token);
   }
 }

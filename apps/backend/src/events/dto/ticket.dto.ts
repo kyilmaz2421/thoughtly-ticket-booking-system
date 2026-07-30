@@ -1,3 +1,4 @@
+import { decodeCursor, encodeCursor } from '../../common/db/paginate.util';
 import { BaseDto } from '../../common/dto/base.dto';
 import { Ticket, TicketSection } from '../entities/ticket.entity';
 
@@ -33,10 +34,10 @@ export class PaginatedTicketsDto {
   hasMore: boolean;
 
   static encodeCursor(cursor: TicketCursor): string {
-    return Buffer.from(JSON.stringify(cursor)).toString('base64url');
+    return encodeCursor(cursor);
   }
 
   static decodeCursor(token: string): TicketCursor {
-    return JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as TicketCursor;
+    return decodeCursor<TicketCursor>(token);
   }
 }
