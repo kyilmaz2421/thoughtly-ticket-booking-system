@@ -39,6 +39,7 @@ interface Props {
   isReserving: boolean;
   reservationError: Error | null;
   onClose: () => void;
+  onConfirmed: () => void;
 }
 
 export function BookingModal({
@@ -48,6 +49,7 @@ export function BookingModal({
   isReserving,
   reservationError,
   onClose,
+  onConfirmed,
 }: Props) {
   const [form] = Form.useForm();
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -95,7 +97,7 @@ export function BookingModal({
   return (
     <Modal
       open={!!ticket}
-      onCancel={onClose}
+      onCancel={confirmation ? onConfirmed : onClose}
       footer={null}
       title="Complete Your Booking"
       width={480}
@@ -106,7 +108,7 @@ export function BookingModal({
           status="success"
           title="Booking Confirmed!"
           subTitle={`Confirmation #${confirmation.bookingIds[0].slice(0, 8).toUpperCase()} · A receipt will be sent to ${confirmation.email}`}
-          extra={<Button type="primary" onClick={onClose}>Done</Button>}
+          extra={<Button type="primary" onClick={onConfirmed}>Done</Button>}
         />
       ) : isReserving ? (
         <div style={{ textAlign: "center", padding: "40px 0" }}>
@@ -185,7 +187,15 @@ export function BookingModal({
             </Form.Item>
             <div style={{ display: "flex", gap: 12 }}>
               <Form.Item label="Expiry" name="expiry" rules={[{ required: true, message: "Required" }]} style={{ flex: 1 }}>
-                <Input placeholder="MM/YY" maxLength={5} />
+                <Input
+                  placeholder="MM/YY"
+                  maxLength={5}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+                    form.setFieldValue("expiry", formatted);
+                  }}
+                />
               </Form.Item>
               <Form.Item label="CVV" name="cvv" rules={[{ required: true, message: "Required" }]} style={{ flex: 1 }}>
                 <Input placeholder="123" maxLength={4} />

@@ -140,6 +140,7 @@ export function EventDetailPage({ id }: { id: string }) {
         isReserving={createReservation.isPending}
         reservationError={createReservation.error as Error | null}
         onClose={() => setBookingTicket(null)}
+        onConfirmed={() => router.push("/")}
       />
     </div>
   );
