@@ -12,7 +12,9 @@ import { VenuesModule } from './venues/venues.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(dataSourceOptions),
+    // forRootAsync defers reading Config/env until NestJS initializes the module,
+    // so process.env overrides set before app.init() (e.g. in E2E tests) are picked up.
+    TypeOrmModule.forRootAsync({ useFactory: () => dataSourceOptions() }),
     EventsModule,
     BookingsModule,
     VenuesModule,

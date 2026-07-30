@@ -2,12 +2,16 @@ import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
-import { addTransactionalDataSource } from 'typeorm-transactional';
+import { addTransactionalDataSource, initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AppModule } from './app.module';
 import { Config } from './common/config';
 
 async function bootstrap() {
+  // Must be called before the app is created so AsyncLocalStorage is ready
+  // before any @Transactional() decorator runs.
+  initializeTransactionalContext();
+
   const app = await NestFactory.create(AppModule);
 
   // Order matters: prefix, pipes, and cors configure the app before it opens for traffic.
