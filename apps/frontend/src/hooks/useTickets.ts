@@ -1,6 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { eventsService } from "@/services/events";
+
+// Returns a callback that invalidates all ticket pages for an event.
+export function useTicketsInvalidate(eventId: string) {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.invalidateQueries({ queryKey: ["tickets", eventId] });
+}
 
 export function useTickets(
   eventId: string,

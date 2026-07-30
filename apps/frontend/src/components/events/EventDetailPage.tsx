@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Descriptions, Spin, Tag, Typography } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
@@ -9,6 +9,7 @@ import { useCancelReservation } from "@/hooks/useCancelReservation";
 import { useCurrentUser } from "@/hooks/useCreateBooking";
 import { useCreateReservation } from "@/hooks/useCreateReservation";
 import { useEvent } from "@/hooks/useEvent";
+import { useTicketsInvalidate } from "@/hooks/useTickets";
 import { Ticket } from "@/services/events";
 import { BookingModal } from "./BookingModal";
 import { TicketList } from "./TicketList";
@@ -31,6 +32,22 @@ export function EventDetailPage({ id }: { id: string }) {
   const cancelReservation = useCancelReservation();
 
   const heldTicketIds = createReservation.data?.ticketIds ?? [];
+  const invalidateTickets = useTicketsInvalidate(id);
+
+  // When the reservation TTL expires, clear the hold state and refetch tickets
+  // so the UI reflects availability without the user having to do anything.
+  useEffect(() => {
+    const expiresAt = createReservation.data?.expiresAt;
+    if (!expiresAt) return;
+    const msLeft = new Date(expiresAt).getTime() - Date.now();
+    if (msLeft <= 0) return;
+    const id = setTimeout(() => {
+      setBookingTicket(null);
+      createReservation.reset();
+      invalidateTickets();
+    }, msLeft);
+    return () => clearTimeout(id);
+  }, [createReservation.data?.expiresAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleBook(ticket: Ticket) {
     if (!currentUser) return;

@@ -12,7 +12,7 @@ export type TicketReservedValue = Branded<string, 'TicketReservedValue'>;
 // Carries the expected value type as a phantom — zero runtime cost
 export type TypedKey<V> = { readonly key: string; readonly _type?: V };
 
-export const DEFAULT_RESERVATION_TTL_SECONDS = 5 * 60; // 5 minutes
+export const DEFAULT_RESERVATION_TTL_SECONDS = 60; // 1 minute
 
 export const RedisKey = {
   // No reservation:{token} key — token lives only in ticket key values for ownership validation
