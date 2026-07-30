@@ -8,8 +8,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // v1 prefix applied globally — bump to v2 here when breaking changes are needed
   app.setGlobalPrefix('v1');
+  app.enableCors({ origin: Config.CLIENT_URL });
   await app.listen(Config.PORT);
-  console.log(`Backend listening on http://localhost:${Config.PORT}`);
+  console.log(`Backend listening on port ${Config.PORT}`);
 }
 
 void bootstrap();

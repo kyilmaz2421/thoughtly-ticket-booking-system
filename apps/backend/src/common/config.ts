@@ -8,6 +8,7 @@ export class Config {
   static readonly DB_USER: string = process.env.DB_USER || 'postgres';
   static readonly DB_PASSWORD: string = process.env.DB_PASSWORD || 'postgres';
   static readonly DB_NAME: string = process.env.DB_NAME || 'ticket_booking';
+  static readonly CLIENT_URL: string = process.env.CLIENT_URL || 'http://localhost:3000'
 
   static readonly NODE_ENV: string = process.env.NODE_ENV || 'development';
   static get isDevelopment(): boolean {
