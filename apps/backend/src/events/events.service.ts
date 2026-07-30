@@ -101,9 +101,7 @@ export class EventsService {
 
     // Single MGET round-trip instead of N individual GETs.
     // We check all returned rows (including the +1 lookahead) so pagination counts stay correct.
-    const heldFlags = await this.redisService.mget(
-      dbTickets.map((t) => RedisKey.ticketReserved(t.id)),
-    );
+    const heldFlags = await this.redisService.mget(dbTickets.map((t) => RedisKey.ticketReserved(t.id)));
     const available = dbTickets.filter((_, i) => heldFlags[i] === null);
 
     const { page, hasMore, nextCursor } = paginate(available, take, (last) =>

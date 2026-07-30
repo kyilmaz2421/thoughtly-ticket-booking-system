@@ -26,7 +26,9 @@ export const RedisKey = {
 export const RedisValue = {
   ticketReserved: (userId: string, reservationToken: string, expiresAt: string): TicketReservedValue =>
     `${userId}:${reservationToken}:${expiresAt}` as TicketReservedValue,
-  parseTicketReserved: (value: TicketReservedValue): { userId: string; reservationToken: string; expiresAt: string } => {
+  parseTicketReserved: (
+    value: TicketReservedValue,
+  ): { userId: string; reservationToken: string; expiresAt: string } => {
     // Split on first two colons only — expiresAt is an ISO string which itself contains colons
     const firstColon = value.indexOf(':');
     const secondColon = value.indexOf(':', firstColon + 1);

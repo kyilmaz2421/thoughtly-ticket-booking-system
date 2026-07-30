@@ -31,7 +31,10 @@ export function EventDetailPage({ id }: { id: string }) {
     if (!currentUser) return;
     setBookingTicket(ticket);
     createReservation.reset();
-    createReservation.mutate({ userId: currentUser.id, ticketIds: [ticket.id] });
+    createReservation.mutate({
+      userId: currentUser.id,
+      ticketIds: [ticket.id],
+    });
   }
 
   if (isLoading) {

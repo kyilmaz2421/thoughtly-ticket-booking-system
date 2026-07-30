@@ -43,13 +43,15 @@ export class BookingsService {
     if (conflicts.length > 0) {
       // Idempotency: if every conflict belongs to this user, return their existing hold with remaining TTL.
       // Covers client retries and duplicate requests — the caller gets the same shape back as a fresh reserve.
-      const allOwnedByUser = conflicts.every(
-        (v) => RedisValue.parseTicketReserved(v).userId === dto.userId,
-      );
+      const allOwnedByUser = conflicts.every((v) => RedisValue.parseTicketReserved(v).userId === dto.userId);
       if (!allOwnedByUser) throw new ConflictException('One or more tickets are already reserved');
 
       // expiresAt is embedded in the stored value — no extra Redis round-trip needed
-      const { reservationToken: existingToken, expiresAt: existingExpiresAt, userId } = RedisValue.parseTicketReserved(conflicts[0]);
+      const {
+        reservationToken: existingToken,
+        expiresAt: existingExpiresAt,
+        userId,
+      } = RedisValue.parseTicketReserved(conflicts[0]);
       return { reservationToken: existingToken, userId, ticketIds: dto.ticketIds, expiresAt: existingExpiresAt };
     }
 

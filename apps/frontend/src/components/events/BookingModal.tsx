@@ -23,13 +23,18 @@ import { CurrentUser } from "@/services/users";
 const { Text } = Typography;
 
 function formatTime(secs: number) {
-  const m = Math.floor(secs / 60).toString().padStart(2, "0");
+  const m = Math.floor(secs / 60)
+    .toString()
+    .padStart(2, "0");
   const s = (secs % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
 }
 
 function secondsUntil(isoDate: string) {
-  return Math.max(0, Math.floor((new Date(isoDate).getTime() - Date.now()) / 1000));
+  return Math.max(
+    0,
+    Math.floor((new Date(isoDate).getTime() - Date.now()) / 1000),
+  );
 }
 
 interface Props {
@@ -52,23 +57,21 @@ export function BookingModal({
   onConfirmed,
 }: Props) {
   const [form] = Form.useForm();
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [tick, setTick] = useState(0);
 
   const confirmBooking = useConfirmBooking();
   const confirmation = confirmBooking.data ?? null;
   const confirmError = confirmBooking.error as Error | null;
 
-  // Sync countdown when reservation arrives or changes
-  useEffect(() => {
-    if (reservation) setSecondsLeft(secondsUntil(reservation.expiresAt));
-  }, [reservation]);
+  // Derive secondsLeft from expiresAt on every render — tick drives re-renders each second.
+  // Avoids calling setState synchronously inside an effect (lint: react-hooks/set-state-in-effect).
+  const secondsLeft = reservation ? secondsUntil(reservation.expiresAt) : 0;
 
-  // Countdown driven by expiresAt from the backend — not a hardcoded constant
   useEffect(() => {
     if (!reservation || confirmation || secondsLeft <= 0) return;
-    const id = setTimeout(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+    const id = setTimeout(() => setTick((t) => t + 1), 1000);
     return () => clearTimeout(id);
-  }, [reservation, secondsLeft, confirmation]);
+  }, [reservation, confirmation, secondsLeft, tick]);
 
   const expired = !!reservation && secondsLeft <= 0 && !confirmation;
   const timerColor =
@@ -87,7 +90,11 @@ export function BookingModal({
         userId: currentUser.id,
         ticketIds: [ticket.id],
         email: values.email,
-        payment: { cardNumber: values.cardNumber, expiry: values.expiry, cvv: values.cvv },
+        payment: {
+          cardNumber: values.cardNumber,
+          expiry: values.expiry,
+          cvv: values.cvv,
+        },
       },
     });
   }
@@ -108,7 +115,11 @@ export function BookingModal({
           status="success"
           title="Booking Confirmed!"
           subTitle={`Confirmation #${confirmation.transactionId} · A receipt will be sent to ${confirmation.email}`}
-          extra={<Button type="primary" onClick={onConfirmed}>Done</Button>}
+          extra={
+            <Button type="primary" onClick={onConfirmed}>
+              Done
+            </Button>
+          }
         />
       ) : isReserving ? (
         <div style={{ textAlign: "center", padding: "40px 0" }}>
@@ -129,23 +140,43 @@ export function BookingModal({
               marginBottom: 16,
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Tag>{ticket?.section}</Tag>
                 <Text strong>Seat {ticket?.seatNumber}</Text>
               </div>
-              <Text strong style={{ fontSize: 18 }}>{ticket?.priceDisplay}</Text>
+              <Text strong style={{ fontSize: 18 }}>
+                {ticket?.priceDisplay}
+              </Text>
             </div>
           </div>
 
           {/* Reservation hold error (ticket already taken, etc.) */}
           {reservationError && !reservation && (
-            <Alert message={reservationError.message} type="error" showIcon style={{ marginBottom: 16 }} />
+            <Alert
+              message={reservationError.message}
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
           )}
 
           {/* Timer — only shown once hold is established */}
           {reservation && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 16,
+              }}
+            >
               <ClockCircleOutlined style={{ color: timerColor }} />
               <Text style={{ color: timerColor, fontWeight: 600 }}>
                 {expired
@@ -175,36 +206,68 @@ export function BookingModal({
             <Form.Item
               label="Email"
               name="email"
-              rules={[{ required: true, type: "email", message: "Valid email required" }]}
+              rules={[
+                {
+                  required: true,
+                  type: "email",
+                  message: "Valid email required",
+                },
+              ]}
             >
               <Input placeholder="jane@example.com" />
             </Form.Item>
 
-            <Divider plain style={{ margin: "4px 0 16px" }}>Payment</Divider>
+            <Divider plain style={{ margin: "4px 0 16px" }}>
+              Payment
+            </Divider>
 
-            <Form.Item label="Card Number" name="cardNumber" rules={[{ required: true, message: "Required" }]}>
+            <Form.Item
+              label="Card Number"
+              name="cardNumber"
+              rules={[{ required: true, message: "Required" }]}
+            >
               <Input placeholder="4242 4242 4242 4242" maxLength={19} />
             </Form.Item>
             <div style={{ display: "flex", gap: 12 }}>
-              <Form.Item label="Expiry" name="expiry" rules={[{ required: true, message: "Required" }]} style={{ flex: 1 }}>
+              <Form.Item
+                label="Expiry"
+                name="expiry"
+                rules={[{ required: true, message: "Required" }]}
+                style={{ flex: 1 }}
+              >
                 <Input
                   placeholder="MM/YY"
                   maxLength={5}
                   onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
-                    const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+                    const digits = e.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 4);
+                    const formatted =
+                      digits.length > 2
+                        ? `${digits.slice(0, 2)}/${digits.slice(2)}`
+                        : digits;
                     form.setFieldValue("expiry", formatted);
                   }}
                 />
               </Form.Item>
-              <Form.Item label="CVV" name="cvv" rules={[{ required: true, message: "Required" }]} style={{ flex: 1 }}>
+              <Form.Item
+                label="CVV"
+                name="cvv"
+                rules={[{ required: true, message: "Required" }]}
+                style={{ flex: 1 }}
+              >
                 <Input placeholder="123" maxLength={4} />
               </Form.Item>
             </div>
 
             {/* Payment error — shows the actual message from MockStripeError */}
             {confirmError && (
-              <Alert message={confirmError.message} type="error" showIcon style={{ marginBottom: 12 }} />
+              <Alert
+                message={confirmError.message}
+                type="error"
+                showIcon
+                style={{ marginBottom: 12 }}
+              />
             )}
 
             <Button

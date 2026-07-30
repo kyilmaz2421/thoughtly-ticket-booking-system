@@ -149,6 +149,7 @@ export class SeedEventData1753000000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DELETE FROM booking;`);
     await queryRunner.query(`DELETE FROM ticket;`);
     await queryRunner.query(`DELETE FROM event;`);
     await queryRunner.query(`DELETE FROM event_host;`);

@@ -47,7 +47,7 @@ export class RedisService {
 
     const keys = keyObjs.map((k) => k.key);
     const result = await this.client.eval(SET_NX_MANY_SCRIPT, keys.length, ...keys, value, String(ttlSeconds));
-    return (result as string[]) as V[];
+    return result as string[] as V[];
   }
 
   // Returns null if the key does not exist or has expired.
@@ -72,7 +72,6 @@ export class RedisService {
     const result = await this.client.set(keyObj.key, value, 'EX', ttlSeconds, 'NX');
     return result === 'OK';
   }
-
 
   async del(...keyObjs: TypedKey<unknown>[]): Promise<void> {
     await this.client.del(...keyObjs.map((k) => k.key));
