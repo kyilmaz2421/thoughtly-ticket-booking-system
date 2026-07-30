@@ -1,12 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 
-import { DEFAULT_RESERVATION_TTL_SECONDS, TypedKey } from './redis.keys';
-import { REDIS_CLIENT } from './redis.module';
+import { Config } from '../common/config';
 
-// Atomically sets all keys to value with TTL only if NONE of them already exist.
-// Returns 1 if all keys were set, 0 if any key already existed (no keys are written).
-// Redis executes Lua scripts in a single atomic step — nothing can interleave.
+import { DEFAULT_RESERVATION_TTL_SECONDS, TypedKey } from './redis.keys';
+
+// Nominal typing shim for TypeScript's structural type system.
 const SET_NX_MANY_SCRIPT = `
   for i = 1, #KEYS do
     if redis.call('EXISTS', KEYS[i]) == 1 then
@@ -21,7 +20,7 @@ const SET_NX_MANY_SCRIPT = `
 
 @Injectable()
 export class RedisService {
-  constructor(@Inject(REDIS_CLIENT) private readonly client: Redis) {}
+  private readonly client = new Redis(Config.REDIS_URL);
 
   // Atomic all-or-nothing bulk SETNX via Lua.
   // Returns true if all keys were claimed, false if any was already taken (nothing written).
