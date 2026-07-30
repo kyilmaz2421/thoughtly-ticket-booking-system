@@ -7,19 +7,22 @@ const { Text } = Typography;
 interface Props {
   ticket: Ticket;
   onBook: (ticket: Ticket) => void;
+  isHeld: boolean; // this ticket is held by the current user
+  isBlocked: boolean; // another ticket is held — this one is unclickable
 }
 
-export function TicketListItem({ ticket, onBook }: Props) {
+export function TicketListItem({ ticket, onBook, isHeld, isBlocked }: Props) {
   return (
     <List.Item
       actions={[
         <Button
           key="book"
-          type="primary"
+          type={isHeld ? "default" : "primary"}
           size="small"
+          disabled={isBlocked}
           onClick={() => onBook(ticket)}
         >
-          Book
+          {isHeld ? "Resume" : "Book"}
         </Button>,
       ]}
     >
@@ -28,6 +31,7 @@ export function TicketListItem({ ticket, onBook }: Props) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Tag>{ticket.section}</Tag>
             <Text>Seat {ticket.seatNumber}</Text>
+            {isHeld && <Tag color="orange">Ticket is On Hold for you</Tag>}
           </div>
         }
       />

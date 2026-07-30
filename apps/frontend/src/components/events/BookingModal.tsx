@@ -41,7 +41,8 @@ interface Props {
   reservation: Reservation | undefined;
   isReserving: boolean;
   reservationError: Error | null;
-  onClose: () => void;
+  onClose: () => void; // X — just dismisses the modal, hold remains active
+  onCancel: () => void; // Cancel Reservation button — releases the hold
   onConfirmed: () => void;
 }
 
@@ -51,6 +52,7 @@ export function BookingModal({
   isReserving,
   reservationError,
   onClose,
+  onCancel,
   onConfirmed,
 }: Props) {
   const [form] = Form.useForm();
@@ -105,6 +107,7 @@ export function BookingModal({
       title="Complete Your Booking"
       width={480}
       destroyOnClose
+      closable={!isConfirming}
     >
       {confirmation ? (
         <Result
@@ -275,6 +278,17 @@ export function BookingModal({
               size="large"
             >
               Confirm Booking · {ticket?.priceDisplay}
+            </Button>
+
+            <Button
+              danger
+              block
+              size="large"
+              disabled={isConfirming}
+              onClick={onCancel}
+              style={{ marginTop: 8 }}
+            >
+              Cancel Reservation
             </Button>
           </Form>
         </>

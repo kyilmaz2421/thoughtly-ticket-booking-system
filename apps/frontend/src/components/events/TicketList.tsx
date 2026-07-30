@@ -13,9 +13,10 @@ const SECTIONS = ["All", "VIP", "Front Row", "GA"];
 interface Props {
   eventId: string;
   onBook: (ticket: Ticket) => void;
+  heldTicketIds: string[];
 }
 
-export function TicketList({ eventId, onBook }: Props) {
+export function TicketList({ eventId, onBook, heldTicketIds }: Props) {
   const [section, setSection] = useState("All");
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorStack, setCursorStack] = useState<string[]>([]);
@@ -71,7 +72,15 @@ export function TicketList({ eventId, onBook }: Props) {
           bordered
           dataSource={tickets?.data ?? []}
           renderItem={(ticket: Ticket) => (
-            <TicketListItem key={ticket.id} ticket={ticket} onBook={onBook} />
+            <TicketListItem
+              key={ticket.id}
+              ticket={ticket}
+              onBook={onBook}
+              isHeld={heldTicketIds.includes(ticket.id)}
+              isBlocked={
+                heldTicketIds.length > 0 && !heldTicketIds.includes(ticket.id)
+              }
+            />
           )}
         />
       )}

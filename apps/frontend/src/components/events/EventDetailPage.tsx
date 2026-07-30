@@ -30,8 +30,15 @@ export function EventDetailPage({ id }: { id: string }) {
   const createReservation = useCreateReservation();
   const cancelReservation = useCancelReservation();
 
+  const heldTicketIds = createReservation.data?.ticketIds ?? [];
+
   function handleBook(ticket: Ticket) {
     if (!currentUser) return;
+    // If this ticket is already held by the user, just reopen the modal
+    if (heldTicketIds.includes(ticket.id)) {
+      setBookingTicket(ticket);
+      return;
+    }
     setBookingTicket(ticket);
     createReservation.reset();
     createReservation.mutate({
@@ -40,9 +47,15 @@ export function EventDetailPage({ id }: { id: string }) {
     });
   }
 
+  // X button — just dismisses the modal; the Redis hold stays alive
+  function handleClose() {
+    setBookingTicket(null);
+  }
+
+  // Cancel Reservation button — releases the hold then closes
   function handleCancel() {
     const reservation = createReservation.data;
-    if (reservation && currentUser) {
+    if (reservation) {
       cancelReservation.mutate({
         reservationToken: reservation.reservationToken,
         body: { ticketIds: reservation.ticketIds },
@@ -149,14 +162,19 @@ export function EventDetailPage({ id }: { id: string }) {
       <Title level={4} style={{ marginBottom: 16 }}>
         Tickets
       </Title>
-      <TicketList eventId={id} onBook={handleBook} />
+      <TicketList
+        eventId={id}
+        onBook={handleBook}
+        heldTicketIds={heldTicketIds}
+      />
 
       <BookingModal
         ticket={bookingTicket}
         reservation={createReservation.data}
         isReserving={createReservation.isPending}
         reservationError={createReservation.error as Error | null}
-        onClose={handleCancel}
+        onClose={handleClose}
+        onCancel={handleCancel}
         onConfirmed={() => router.push("/")}
       />
     </div>

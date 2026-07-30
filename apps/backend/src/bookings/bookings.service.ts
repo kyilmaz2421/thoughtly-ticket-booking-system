@@ -9,7 +9,13 @@ import { Ticket } from '../events/entities/ticket.entity';
 import { DEFAULT_RESERVATION_TTL_SECONDS, RedisKey, RedisValue } from '../redis/redis.keys';
 import { RedisService } from '../redis/redis.service';
 
-import { BookingConfirmationDto, CancelReservationDto, ConfirmBookingDto, CreateReservationDto, ReservationDto } from './dto/booking.dto';
+import {
+  BookingConfirmationDto,
+  CancelReservationDto,
+  ConfirmBookingDto,
+  CreateReservationDto,
+  ReservationDto,
+} from './dto/booking.dto';
 import { Booking, PaymentStatus } from './entities/booking.entity';
 import { PaymentService } from './payment.service';
 
@@ -83,8 +89,7 @@ export class BookingsService {
     const ticketKeys = dto.ticketIds.map(RedisKey.ticketReserved);
     const storedValues = await this.redisService.mget(ticketKeys);
 
-    if (storedValues.some((s) => s === null))
-      throw new GoneException('Reservation has expired — please reserve again');
+    if (storedValues.some((s) => s === null)) throw new GoneException('Reservation has expired — please reserve again');
 
     const parsed = storedValues.map((s) => RedisValue.parseTicketReserved(s!));
 
@@ -115,7 +120,7 @@ export class BookingsService {
       // Step 4: INSERT one booking row per ticket — only reached on payment success
       const bookings: Booking[] = this.bookingRepository.create(
         tickets.map((ticket) => ({
-          userId: userId!,
+          userId: userId,
           ticketId: ticket.id,
           paymentStatus: PaymentStatus.SUCCESS,
         })),
@@ -126,7 +131,7 @@ export class BookingsService {
         transactionId,
         reservationToken,
         ticketIds: dto.ticketIds,
-        userId: userId!,
+        userId: userId,
         email: dto.email,
         status: 'confirmed',
         confirmedAt: new Date().toISOString(),

@@ -1,7 +1,13 @@
 import { Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 
 import { BookingsService } from './bookings.service';
-import { BookingConfirmationDto, CancelReservationDto, ConfirmBookingDto, CreateReservationDto, ReservationDto } from './dto/booking.dto';
+import {
+  BookingConfirmationDto,
+  CancelReservationDto,
+  ConfirmBookingDto,
+  CreateReservationDto,
+  ReservationDto,
+} from './dto/booking.dto';
 
 @Controller('bookings')
 export class BookingsController {

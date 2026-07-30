@@ -49,7 +49,10 @@ export const bookingsService = {
       body: JSON.stringify(body),
     }),
 
-  cancelReservation: (reservationToken: string, body: CancelReservationRequest) =>
+  cancelReservation: (
+    reservationToken: string,
+    body: CancelReservationRequest,
+  ) =>
     apiFetch<void>(`/bookings/reservations/${reservationToken}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
