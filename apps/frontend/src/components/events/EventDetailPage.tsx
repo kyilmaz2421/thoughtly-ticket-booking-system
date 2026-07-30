@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, Descriptions, Spin, Tag, Typography } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 
-import { useCurrentUser } from "@/hooks/useCreateBooking";
+import { useCreateReservation, useCurrentUser } from "@/hooks/useCreateBooking";
 import { useEvent } from "@/hooks/useEvent";
 import { Ticket } from "@/services/events";
 import { BookingModal } from "./BookingModal";
@@ -25,6 +25,14 @@ export function EventDetailPage({ id }: { id: string }) {
 
   const { data: currentUser } = useCurrentUser();
   const { data: event, isLoading } = useEvent(id);
+  const createReservation = useCreateReservation();
+
+  function handleBook(ticket: Ticket) {
+    if (!currentUser) return;
+    setBookingTicket(ticket);
+    createReservation.reset();
+    createReservation.mutate({ userId: currentUser.id, ticketIds: [ticket.id] });
+  }
 
   if (isLoading) {
     return (
@@ -123,12 +131,14 @@ export function EventDetailPage({ id }: { id: string }) {
       <Title level={4} style={{ marginBottom: 16 }}>
         Tickets
       </Title>
-      <TicketList eventId={id} onBook={setBookingTicket} />
+      <TicketList eventId={id} onBook={handleBook} />
 
       <BookingModal
-        key={bookingTicket?.id ?? "none"}
         ticket={bookingTicket}
         currentUser={currentUser}
+        reservation={createReservation.data}
+        isReserving={createReservation.isPending}
+        reservationError={createReservation.error as Error | null}
         onClose={() => setBookingTicket(null)}
       />
     </div>
