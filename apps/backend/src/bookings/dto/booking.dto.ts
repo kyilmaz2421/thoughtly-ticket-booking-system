@@ -73,6 +73,7 @@ export class ConfirmBookingDto {
 
 export class BookingConfirmationDto {
   bookingIds: string[]; // one DB row per ticket — only exist after successful confirm
+  transactionId: string; // opaque ID returned by the payment processor
   reservationToken: string;
   ticketIds: string[];
   userId: string;

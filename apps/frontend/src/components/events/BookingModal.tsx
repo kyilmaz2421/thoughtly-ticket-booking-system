@@ -107,7 +107,7 @@ export function BookingModal({
         <Result
           status="success"
           title="Booking Confirmed!"
-          subTitle={`Confirmation #${confirmation.bookingIds[0].slice(0, 8).toUpperCase()} · A receipt will be sent to ${confirmation.email}`}
+          subTitle={`Confirmation #${confirmation.transactionId} · A receipt will be sent to ${confirmation.email}`}
           extra={<Button type="primary" onClick={onConfirmed}>Done</Button>}
         />
       ) : isReserving ? (

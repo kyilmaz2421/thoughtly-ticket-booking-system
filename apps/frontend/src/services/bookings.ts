@@ -25,6 +25,7 @@ export interface ConfirmBookingRequest {
 
 export interface BookingConfirmation {
   bookingIds: string[];
+  transactionId: string;
   reservationToken: string;
   ticketIds: string[];
   userId: string;

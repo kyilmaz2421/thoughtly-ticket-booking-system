@@ -10,6 +10,7 @@ export async function apiFetch<T>(
     try {
       const body = await res.json();
       if (typeof body?.message === "string") message = body.message;
+      else if (Array.isArray(body?.message)) message = body.message.join(", ");
     } catch {
       /* ignore parse failure */
     }

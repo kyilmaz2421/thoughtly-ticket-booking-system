@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { Injectable } from '@nestjs/common';
 
 const FAILURE_RATE = 0.2;
@@ -16,12 +18,19 @@ export class MockStripeError extends Error {
   }
 }
 
+export interface PaymentResult {
+  transactionId: string; // opaque ID returned by the payment processor
+}
+
 @Injectable()
 export class PaymentService {
-  async executePayment(): Promise<void> {
+  async executePayment(): Promise<PaymentResult> {
     const delay = MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS);
     await new Promise((resolve) => setTimeout(resolve, delay));
 
     if (Math.random() < FAILURE_RATE) throw new MockStripeError();
+
+    // Real Stripe returns charge.id ("ch_…"). Mock returns a recognisable prefix.
+    return { transactionId: `txn_${randomUUID().replace(/-/g, '').slice(0, 24).toUpperCase()}` };
   }
 }

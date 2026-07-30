@@ -86,7 +86,7 @@ export class BookingsService {
       // Step 3: Charge then INSERT — finally releases the Redis hold in all outcomes.
       // On failure: payment throws, INSERT is never reached, transaction rolls back, hold is freed.
       // On success: INSERT commits, hold is freed.
-      await this.paymentService.executePayment();
+      const { transactionId } = await this.paymentService.executePayment();
 
       // Step 4: INSERT one booking row per ticket — only reached on payment success
       const bookings: Booking[] = this.bookingRepository.create(
@@ -99,6 +99,7 @@ export class BookingsService {
       await this.bookingRepository.save(bookings);
       return {
         bookingIds: bookings.map((b) => b.id),
+        transactionId,
         reservationToken,
         ticketIds: dto.ticketIds,
         userId: dto.userId,
