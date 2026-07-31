@@ -47,6 +47,12 @@ export class TicketsQueryDto {
   @IsOptional()
   @IsUUID()
   userId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  quantity?: number;
 }
 
 // ---------------------------------------------------------------------------

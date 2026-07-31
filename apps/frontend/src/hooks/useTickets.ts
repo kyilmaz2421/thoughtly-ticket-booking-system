@@ -15,10 +15,11 @@ export function useTickets(
   cursor?: string,
   limit = 10,
   userId?: string,
+  quantity?: number,
 ) {
   return useQuery({
-    queryKey: ["tickets", eventId, section, cursor, limit, userId],
-    queryFn: () => eventsService.getTickets(eventId, section, cursor, limit, userId),
+    queryKey: ["tickets", eventId, section, cursor, limit, userId, quantity],
+    queryFn: () => eventsService.getTickets(eventId, section, cursor, limit, userId, quantity),
     enabled: !!eventId && !!userId,
   });
 }

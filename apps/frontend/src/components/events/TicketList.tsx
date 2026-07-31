@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, List, Segmented, Spin } from "antd";
+import { Button, List, Select, Segmented, Spin } from "antd";
 
 import { useTickets } from "@/hooks/useTickets";
 import { Ticket } from "@/services/events";
@@ -9,6 +9,10 @@ import { TicketListItem } from "./TicketListItem";
 
 // could use the enums from backend but shared type layer is out of scope for this
 const SECTIONS = ["All", "VIP", "Front Row", "GA"];
+const QUANTITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+  value: n,
+  label: `${n} ticket${n > 1 ? "s" : ""}`,
+}));
 
 interface Props {
   eventId: string;
@@ -21,6 +25,7 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
   const [section, setSection] = useState("All");
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [quantity, setQuantity] = useState(1);
 
   const { data: tickets, isLoading } = useTickets(
     eventId,
@@ -28,6 +33,7 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
     cursor,
     undefined,
     userId,
+    quantity,
   );
 
   function nextPage() {
@@ -49,6 +55,12 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
     setCursorStack([]);
   }
 
+  function onQuantityChange(value: number) {
+    setQuantity(value);
+    setCursor(undefined);
+    setCursorStack([]);
+  }
+
   return (
     <>
       <div
@@ -57,12 +69,20 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: 16,
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
         <Segmented
           options={SECTIONS}
           value={section}
-          onChange={(v) => onSectionChange(v as string)}
+          onChange={(v: string) => onSectionChange(v)}
+        />
+        <Select
+          value={quantity}
+          onChange={onQuantityChange}
+          options={QUANTITY_OPTIONS}
+          style={{ width: 140 }}
         />
       </div>
 
@@ -74,17 +94,19 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
         <List
           bordered
           dataSource={tickets?.data ?? []}
-          renderItem={(ticket: Ticket) => (
-            <TicketListItem
-              key={ticket.id}
-              ticket={ticket}
-              onBook={onBook}
-              isHeld={ticket.heldByMe || heldTicketIds.includes(ticket.id)}
-              isBlocked={
-                heldTicketIds.length > 0 && !heldTicketIds.includes(ticket.id) && !ticket.heldByMe
-              }
-            />
-          )}
+          renderItem={(ticket: Ticket) => {
+            const isHeld = ticket.heldByMe || heldTicketIds.includes(ticket.id);
+            const anyHeld = heldTicketIds.length > 0 || (tickets?.data ?? []).some((t) => t.heldByMe);
+            return (
+              <TicketListItem
+                key={ticket.id}
+                ticket={ticket}
+                onBook={onBook}
+                isHeld={isHeld}
+                isBlocked={anyHeld && !isHeld}
+              />
+            );
+          }}
         />
       )}
 

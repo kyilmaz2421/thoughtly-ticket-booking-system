@@ -13,13 +13,14 @@ docker compose up
 ```
 
 This will:
+
 1. Start Postgres and Redis
 2. Install all dependencies
 3. Run all database migrations
 4. Start the backend and frontend
 
 | Service  | URL                      |
-|----------|--------------------------|
+| -------- | ------------------------ |
 | Frontend | http://localhost:3000    |
 | Backend  | http://localhost:4000/v1 |
 
@@ -73,12 +74,6 @@ UI runs at `http://localhost:3000`.
 Run from `apps/backend/` or prefix any command with `pnpm --filter backend`. Migration files live in `apps/backend/migrations/`.
 
 ```bash
-# Generate a schema migration (diffed from entities)
-pnpm migration:generate:schema migrations/schema/TicketEntityMigration
-
-# Generate a data migration (hand-written — file is created, you fill it in)
-pnpm migration:generate:data migrations/data/SeedDefaultEvents
-
 # Apply all pending migrations (schema + data)
 pnpm migration:run
 
@@ -138,12 +133,12 @@ src/
 ```
 
 **Why this structure:**
+
 - `Ticket` lives inside `events/` because tickets are created and owned by the event lifecycle. There is no tickets endpoint independent of an event.
 - `Booking` has its own module because checkout is a distinct domain — it orchestrates across events, users, Redis holds, and payments.
 - `Venue`, `User`, and `EventHost` have no controllers yet — they are supporting entities imported by other modules. Their modules exist so TypeORM repositories can be injected via `forFeature()`.
 - Request DTOs (create/update input shapes) always live in the module that receives them. Response DTOs live in the module that owns the entity — `VenueDto` lives in `venues/dto/` and is imported by `events/` because the venue module is the authoritative source for how a venue is serialized.
 - `PaymentService` lives inside `bookings/` since payment is a step in the booking flow, not a standalone feature.
-
 
 ### Event Reservation Holds Flow
 

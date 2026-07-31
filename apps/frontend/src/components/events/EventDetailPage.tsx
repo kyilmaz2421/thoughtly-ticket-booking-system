@@ -6,7 +6,7 @@ import { Button, Descriptions, Spin, Tag, Typography } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 
 import { useCancelReservation } from "@/hooks/useCancelReservation";
-import { useCurrentUser } from "@/hooks/useCreateBooking";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useCreateReservation } from "@/hooks/useCreateReservation";
 import { useEvent } from "@/hooks/useEvent";
 import { useTicketsInvalidate } from "@/hooks/useTickets";

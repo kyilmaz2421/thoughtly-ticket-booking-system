@@ -82,11 +82,13 @@ export const eventsService = {
     cursor?: string,
     limit = DEFAULT_PAGE_SIZE,
     userId?: string,
+    quantity?: number,
   ) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (section) params.set("section", section);
     if (cursor) params.set("cursor", cursor);
     if (userId) params.set("userId", userId);
+    if (quantity) params.set("quantity", String(quantity));
     return apiFetch<PaginatedTickets>(`/events/${eventId}/tickets?${params}`);
   },
 };

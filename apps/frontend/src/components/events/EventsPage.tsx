@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Alert, Button, List, Spin, Typography } from "antd";
 
-import { useCurrentUser } from "@/hooks/useCreateBooking";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useEvents } from "@/hooks/useEvents";
 import { EventSummary } from "@/services/events";
 import { EventListItem } from "./EventListItem";

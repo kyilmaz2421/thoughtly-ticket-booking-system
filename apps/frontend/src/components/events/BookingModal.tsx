@@ -105,12 +105,12 @@ export function BookingModal({
   return (
     <Modal
       open={!!ticket}
-      onCancel={confirmation ? onConfirmed : onClose}
+      onCancel={onClose}
       footer={null}
       title="Complete Your Booking"
       width={480}
       destroyOnClose
-      closable={!isConfirming}
+      closable={!isConfirming && !confirmation && !confirmError}
     >
       {confirmation ? (
         <Result
@@ -119,6 +119,17 @@ export function BookingModal({
           subTitle={`Confirmation #${confirmation.transactionId} · A receipt will be sent to ${confirmation.email}`}
           extra={
             <Button type="primary" onClick={onConfirmed}>
+              Done
+            </Button>
+          }
+        />
+      ) : confirmError ? (
+        <Result
+          status="error"
+          title="Payment Failed"
+          subTitle={confirmError.message}
+          extra={
+            <Button type="primary" onClick={() => window.location.reload()}>
               Done
             </Button>
           }
@@ -269,15 +280,7 @@ export function BookingModal({
               <Input placeholder="10001" maxLength={10} />
             </Form.Item>
 
-            {/* Payment error — shows the actual message from MockStripeError */}
-            {confirmError && (
-              <Alert
-                message={confirmError.message}
-                type="error"
-                showIcon
-                style={{ marginBottom: 12 }}
-              />
-            )}
+
 
             <Button
               type="primary"
