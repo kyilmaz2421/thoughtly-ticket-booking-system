@@ -28,19 +28,34 @@ function useCountdown(expiresAt?: string) {
 }
 
 interface Props {
-  ticket: Ticket;
-  onBook: (ticket: Ticket) => void;
+  tickets: Ticket[];
+  onBook: (tickets: Ticket[]) => void;
   isHeld: boolean;
   isBlocked: boolean;
 }
 
-export function TicketListItem({ ticket, onBook, isHeld, isBlocked }: Props) {
-  const secondsLeft = useCountdown(isHeld ? ticket.heldUntil : undefined);
+export function TicketListItem({ tickets, onBook, isHeld, isBlocked }: Props) {
+  const heldUntil = tickets.find((t) => t.heldUntil)?.heldUntil;
+  const secondsLeft = useCountdown(isHeld ? heldUntil : undefined);
 
   const countdownLabel =
     secondsLeft !== null
       ? `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`
       : null;
+
+  const first = tickets[0];
+  const last = tickets[tickets.length - 1];
+  const isMulti = tickets.length > 1;
+
+  const seatLabel = isMulti
+    ? `Seats ${first.seatNumber}–${last.seatNumber}`
+    : `Seat ${first.seatNumber}`;
+
+  const totalPriceCents = tickets.reduce((sum, t) => sum + t.priceCents, 0);
+  const totalPriceDisplay = `$${(totalPriceCents / 100).toFixed(2)}`;
+  const priceLabel = isMulti
+    ? `${first.priceDisplay} each · ${totalPriceDisplay} total`
+    : first.priceDisplay;
 
   return (
     <List.Item
@@ -50,7 +65,7 @@ export function TicketListItem({ ticket, onBook, isHeld, isBlocked }: Props) {
           type={isHeld ? "default" : "primary"}
           size="small"
           disabled={isBlocked}
-          onClick={() => onBook(ticket)}
+          onClick={() => onBook(tickets)}
         >
           {isHeld ? "Resume" : "Book"}
         </Button>,
@@ -59,11 +74,11 @@ export function TicketListItem({ ticket, onBook, isHeld, isBlocked }: Props) {
       <List.Item.Meta
         title={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Tag>{ticket.section}</Tag>
-            <Text>Seat {ticket.seatNumber}</Text>
+            <Tag>{first.section}</Tag>
+            <Text>{seatLabel}</Text>
             {isHeld && (
               <Tag color="orange">
-                Ticket Reserved for you
+                Reserved for you
                 {countdownLabel ? ` — ${countdownLabel}` : ""}
               </Tag>
             )}
@@ -71,7 +86,7 @@ export function TicketListItem({ ticket, onBook, isHeld, isBlocked }: Props) {
         }
       />
       <Text strong style={{ fontSize: 16 }}>
-        {ticket.priceDisplay}
+        {priceLabel}
       </Text>
     </List.Item>
   );

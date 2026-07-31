@@ -37,7 +37,7 @@ function secondsUntil(isoDate: string) {
 }
 
 interface Props {
-  ticket: Ticket | null;
+  tickets: Ticket[];
   reservation: Reservation | undefined;
   isReserving: boolean;
   reservationError: Error | null;
@@ -47,7 +47,7 @@ interface Props {
 }
 
 export function BookingModal({
-  ticket,
+  tickets,
   reservation,
   isReserving,
   reservationError,
@@ -76,6 +76,15 @@ export function BookingModal({
   const timerColor =
     secondsLeft <= 60 ? "#f5222d" : secondsLeft <= 180 ? "#fa8c16" : "#52c41a";
 
+  const first = tickets[0];
+  const last = tickets[tickets.length - 1];
+  const isMulti = tickets.length > 1;
+  const totalPriceCents = tickets.reduce((s, t) => s + t.priceCents, 0);
+  const totalPriceDisplay = `$${(totalPriceCents / 100).toFixed(2)}`;
+  const seatLabel = isMulti
+    ? `Seats ${first!.seatNumber}–${last!.seatNumber}`
+    : `Seat ${first?.seatNumber}`;
+
   function onSubmit(values: {
     email: string;
     cardNumber: string;
@@ -83,12 +92,12 @@ export function BookingModal({
     cvv: string;
     postalCode: string;
   }) {
-    if (!ticket || !reservation) return;
+    if (!tickets.length || !reservation) return;
     confirmBooking.mutate({
       reservationToken: reservation.reservationToken,
       body: {
         userId: reservation.userId,
-        ticketIds: [ticket.id],
+        ticketIds: tickets.map((t) => t.id),
         email: values.email,
         payment: {
           cardNumber: values.cardNumber,
@@ -104,7 +113,7 @@ export function BookingModal({
 
   return (
     <Modal
-      open={!!ticket}
+      open={tickets.length > 0}
       onCancel={onClose}
       footer={null}
       title="Complete Your Booking"
@@ -138,7 +147,7 @@ export function BookingModal({
         <div style={{ textAlign: "center", padding: "40px 0" }}>
           <Spin size="large" />
           <div style={{ marginTop: 16 }}>
-            <Text type="secondary">Holding your ticket…</Text>
+            <Text type="secondary">Holding your ticket{isMulti ? "s" : ""}…</Text>
           </div>
         </div>
       ) : (
@@ -161,11 +170,11 @@ export function BookingModal({
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Tag>{ticket?.section}</Tag>
-                <Text strong>Seat {ticket?.seatNumber}</Text>
+                <Tag>{first?.section}</Tag>
+                <Text strong>{seatLabel}</Text>
               </div>
               <Text strong style={{ fontSize: 18 }}>
-                {ticket?.priceDisplay}
+                {isMulti ? totalPriceDisplay : first?.priceDisplay}
               </Text>
             </div>
           </div>
@@ -290,7 +299,7 @@ export function BookingModal({
               block
               size="large"
             >
-              Confirm Booking · {ticket?.priceDisplay}
+              Confirm Booking · {isMulti ? totalPriceDisplay : first?.priceDisplay}
             </Button>
 
             <Button

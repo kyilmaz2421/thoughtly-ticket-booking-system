@@ -7,16 +7,26 @@ import { useTickets } from "@/hooks/useTickets";
 import { Ticket } from "@/services/events";
 import { TicketListItem } from "./TicketListItem";
 
-// could use the enums from backend but shared type layer is out of scope for this
 const SECTIONS = ["All", "VIP", "Front Row", "GA"];
 const QUANTITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
   value: n,
   label: `${n} ticket${n > 1 ? "s" : ""}`,
 }));
 
+// Group tickets by groupId — each group is what the user books together.
+function groupTickets(tickets: Ticket[]): Ticket[][] {
+  const map = new Map<number, Ticket[]>();
+  for (const ticket of tickets) {
+    const group = map.get(ticket.groupId) ?? [];
+    group.push(ticket);
+    map.set(ticket.groupId, group);
+  }
+  return Array.from(map.values());
+}
+
 interface Props {
   eventId: string;
-  onBook: (ticket: Ticket) => void;
+  onBook: (tickets: Ticket[]) => void;
   heldTicketIds: string[];
   userId?: string;
 }
@@ -27,7 +37,7 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
   const [cursorStack, setCursorStack] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
 
-  const { data: tickets, isLoading } = useTickets(
+  const { data: ticketsData, isLoading } = useTickets(
     eventId,
     section === "All" ? undefined : section,
     cursor,
@@ -36,10 +46,15 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
     quantity,
   );
 
+  const groups = groupTickets(ticketsData?.data ?? []);
+  const anyHeld =
+    heldTicketIds.length > 0 ||
+    (ticketsData?.data ?? []).some((t) => t.heldByMe);
+
   function nextPage() {
-    if (!tickets?.nextCursor) return;
+    if (!ticketsData?.nextCursor) return;
     setCursorStack((s) => [...s, cursor ?? ""]);
-    setCursor(tickets.nextCursor);
+    setCursor(ticketsData.nextCursor);
   }
 
   function prevPage() {
@@ -93,14 +108,15 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
       ) : (
         <List
           bordered
-          dataSource={tickets?.data ?? []}
-          renderItem={(ticket: Ticket) => {
-            const isHeld = ticket.heldByMe || heldTicketIds.includes(ticket.id);
-            const anyHeld = heldTicketIds.length > 0 || (tickets?.data ?? []).some((t) => t.heldByMe);
+          dataSource={groups}
+          renderItem={(group: Ticket[]) => {
+            const isHeld = group.some(
+              (t) => t.heldByMe || heldTicketIds.includes(t.id),
+            );
             return (
               <TicketListItem
-                key={ticket.id}
-                ticket={ticket}
+                key={group[0].groupId}
+                tickets={group}
                 onBook={onBook}
                 isHeld={isHeld}
                 isBlocked={anyHeld && !isHeld}
@@ -121,7 +137,7 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
         <Button disabled={cursorStack.length === 0} onClick={prevPage}>
           Previous
         </Button>
-        <Button disabled={!tickets?.hasMore} onClick={nextPage}>
+        <Button disabled={!ticketsData?.hasMore} onClick={nextPage}>
           Next
         </Button>
       </div>

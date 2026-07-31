@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { paginate } from '../common/db/paginate.util';
+import { paginate } from '../common/db/paginate.util'; // still used by findAll
 import { RedisKey, RedisValue } from '../redis/redis.keys';
 import { RedisService } from '../redis/redis.service';
 
@@ -71,8 +71,10 @@ export class EventsService {
   }
 
   async findTickets(eventId: string, query: TicketsQueryDto): Promise<PaginatedTicketsDto> {
-    const { section, cursor, limit = DEFAULT_LIMIT, userId } = query;
-    const take = limit + 1;
+    const { section, cursor, limit = DEFAULT_LIMIT, userId, quantity = 1 } = query;
+    // Over-fetch so we have enough raw tickets to form limit+1 complete groups
+    // even after skipping tickets that break consecutive runs.
+    const take = (limit + 1) * quantity * 2;
     const qb = this.ticketRepository
       .createQueryBuilder('ticket')
       .where('ticket.eventId = :eventId', { eventId })
@@ -107,14 +109,48 @@ export class EventsService {
       return false;
     });
 
-    const { page, hasMore, nextCursor } = paginate(available, take, (last) =>
-      PaginatedTicketsDto.encodeCursor({ section: last.section, seatNumber: last.seatNumber }),
+    const groups = this.groupConsecutive(available, quantity, limit + 1);
+
+    const hasMore = groups.length > limit;
+    const page = hasMore ? groups.slice(0, limit) : groups;
+    const lastGroup = page[page.length - 1];
+    const nextCursor =
+      hasMore && lastGroup
+        ? PaginatedTicketsDto.encodeCursor({
+            section: lastGroup[lastGroup.length - 1].section,
+            seatNumber: lastGroup[lastGroup.length - 1].seatNumber,
+          })
+        : null;
+
+    const data = page.flatMap((group, groupIndex) =>
+      group.map((ticket) =>
+        TicketDto.from(ticket, groupIndex + 1, heldByMeMap.has(ticket.id), heldByMeMap.get(ticket.id)),
+      ),
     );
 
-    return {
-      data: page.map((t) => TicketDto.from(t, heldByMeMap.has(t.id), heldByMeMap.get(t.id))),
-      nextCursor,
-      hasMore,
-    };
+    return { data, nextCursor, hasMore };
+  }
+
+  // Returns up to `maxGroups` groups of exactly `quantity` consecutive same-section
+  // adjacent-seat tickets. When a run breaks early, skip ticket i and retry from i+1.
+  private groupConsecutive(tickets: Ticket[], quantity: number, maxGroups: number): Ticket[][] {
+    const groups: Ticket[][] = [];
+    let i = 0;
+    while (i < tickets.length && groups.length < maxGroups) {
+      let j = i + 1;
+      while (
+        j < tickets.length &&
+        j - i < quantity &&
+        tickets[j].section === tickets[i].section &&
+        tickets[j].seatNumber === tickets[i].seatNumber + (j - i)
+      )
+        j++;
+
+      if (j - i === quantity) {
+        groups.push(tickets.slice(i, j));
+        i = j;
+      } else i++;
+    }
+    return groups;
   }
 }

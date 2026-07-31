@@ -24,7 +24,7 @@ const EVENT_TYPE_COLOR: Record<string, string> = {
 
 export function EventDetailPage({ id }: { id: string }) {
   const router = useRouter();
-  const [bookingTicket, setBookingTicket] = useState<Ticket | null>(null);
+  const [bookingTickets, setBookingTickets] = useState<Ticket[]>([]);
 
   const { data: currentUser } = useCurrentUser();
   const { data: event, isLoading } = useEvent(id);
@@ -42,31 +42,31 @@ export function EventDetailPage({ id }: { id: string }) {
     const msLeft = new Date(expiresAt).getTime() - Date.now();
     if (msLeft <= 0) return;
     const id = setTimeout(() => {
-      setBookingTicket(null);
+      setBookingTickets([]);
       createReservation.reset();
       invalidateTickets();
     }, msLeft);
     return () => clearTimeout(id);
   }, [createReservation.data?.expiresAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleBook(ticket: Ticket) {
+  function handleBook(tickets: Ticket[]) {
     if (!currentUser) return;
-    // If this ticket is already held by the user, just reopen the modal
-    if (heldTicketIds.includes(ticket.id)) {
-      setBookingTicket(ticket);
+    // If any ticket in the group is already held, just reopen the modal
+    if (tickets.some((t) => heldTicketIds.includes(t.id))) {
+      setBookingTickets(tickets);
       return;
     }
-    setBookingTicket(ticket);
+    setBookingTickets(tickets);
     createReservation.reset();
     createReservation.mutate(
-      { userId: currentUser.id, ticketIds: [ticket.id] },
+      { userId: currentUser.id, ticketIds: tickets.map((t) => t.id) },
       { onSuccess: () => invalidateTickets() },
     );
   }
 
   // X button — just dismisses the modal; the Redis hold stays alive
   function handleClose() {
-    setBookingTicket(null);
+    setBookingTickets([]);
   }
 
   // Cancel Reservation button — releases the hold then closes
@@ -187,7 +187,7 @@ export function EventDetailPage({ id }: { id: string }) {
       />
 
       <BookingModal
-        ticket={bookingTicket}
+        tickets={bookingTickets}
         reservation={createReservation.data}
         isReserving={createReservation.isPending}
         reservationError={createReservation.error as Error | null}
