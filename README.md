@@ -2,19 +2,51 @@
 
 An end-to-end concert ticket booking system built with Next.js (frontend), NestJS + TypeORM (backend), and PostgreSQL.
 
-## Prerequisites
+---
 
-- Node.js >= 20
+## Running with Docker (recommended — nothing else required)
+
+The only requirement is [Docker Desktop](https://www.docker.com/products/docker-desktop/). No Node, no Postgres, no Redis needed on your machine.
+
+```bash
+docker compose up
+```
+
+This will:
+1. Start Postgres and Redis
+2. Install all dependencies
+3. Run all database migrations
+4. Start the backend and frontend
+
+| Service  | URL                      |
+|----------|--------------------------|
+| Frontend | http://localhost:3000    |
+| Backend  | http://localhost:4000/v1 |
+
+To stop everything:
+
+```bash
+docker compose down
+```
+
+---
+
+## Running locally (manual setup)
+
+### Prerequisites
+
+- Node.js >= 22
 - pnpm: `corepack enable && corepack prepare pnpm@latest --activate`
 - PostgreSQL running on `localhost:5432`
+- Redis running on `localhost:6379`
 
-## Install
+### Install
 
 ```bash
 pnpm install
 ```
 
-## Run the backend
+### Run the backend
 
 ```bash
 pnpm dev:backend
@@ -22,7 +54,7 @@ pnpm dev:backend
 
 API runs at `http://localhost:4000`. DB connection defaults: host `localhost`, port `5432`, user `postgres`, password `postgres`, database `ticket_booking`.
 
-## Run the frontend
+### Run the frontend
 
 ```bash
 pnpm dev:frontend
