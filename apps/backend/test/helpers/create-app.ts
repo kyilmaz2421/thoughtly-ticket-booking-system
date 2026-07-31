@@ -12,7 +12,7 @@ import { DataSource } from 'typeorm';
 import { addTransactionalDataSource, initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AppModule } from '../../src/app.module';
-import { PaymentService } from '../../src/bookings/payment.service';
+import { PaymentService } from '../../src/payments/payment.service';
 
 export interface TestContext {
   app: INestApplication;
@@ -52,10 +52,7 @@ export async function createApp(): Promise<TestContext> {
   await db.runMigrations();
 
   const [user] = await db.query<{ id: string }[]>(`SELECT id FROM "user" LIMIT 1`);
-  const [user2] = await db.query<{ id: string }[]>(
-    `SELECT id FROM "user" WHERE id != $1 LIMIT 1`,
-    [user.id],
-  );
+  const [user2] = await db.query<{ id: string }[]>(`SELECT id FROM "user" WHERE id != $1 LIMIT 1`, [user.id]);
   const [event] = await db.query<{ id: string }[]>(`SELECT id FROM "event" LIMIT 1`);
   const tickets = await db.query<{ id: string }[]>(
     `SELECT id FROM ticket WHERE event_id = $1 ORDER BY seat_number LIMIT 20`,

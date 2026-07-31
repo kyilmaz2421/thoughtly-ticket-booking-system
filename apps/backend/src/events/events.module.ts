@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { HostsModule } from '../hosts/hosts.module';
-import { RedisModule } from '../redis/redis.module';
+import { RedisModule } from '../common/redis/redis.module';
 import { VenuesModule } from '../venues/venues.module';
 
 import { Event } from './entities/event.entity';

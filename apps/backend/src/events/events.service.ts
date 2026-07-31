@@ -3,8 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { paginate } from '../common/db/paginate.util'; // still used by findAll
-import { RedisKey, RedisValue } from '../redis/redis.keys';
-import { RedisService } from '../redis/redis.service';
+import { RedisKey, RedisValue } from '../common/redis/redis.keys';
+import { RedisService } from '../common/redis/redis.service';
 
 import { EventDetailDto, EventSummaryDto, PaginatedEventsDto, TicketsQueryDto } from './dto/event.dto';
 import { PaginatedTicketsDto, TicketDto } from './dto/ticket.dto';

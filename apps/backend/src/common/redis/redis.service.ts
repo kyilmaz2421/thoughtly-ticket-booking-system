@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 
-import { Config } from '../common/config';
+import { Config } from '../config';
 
 import { DEFAULT_RESERVATION_TTL_SECONDS, TypedKey } from './redis.keys';
 

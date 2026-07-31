@@ -156,7 +156,12 @@ describe('Bookings (E2E) — concurrency & integrity', () => {
       // Craft a second confirm with a different userId — same token, wrong owner
       const impostor = ctx.api
         .post(`/v1/bookings/reservations/${reservation.reservationToken}/confirm`)
-        .send({ userId: ctx.seedUserId2, ticketIds: [ctx.seedTicketId], email: 'impostor@example.com', payment: payment() });
+        .send({
+          userId: ctx.seedUserId2,
+          ticketIds: [ctx.seedTicketId],
+          email: 'impostor@example.com',
+          payment: payment(),
+        });
 
       const [owner, intruder] = await Promise.all([confirm(reservation), impostor]);
 
@@ -172,17 +177,13 @@ describe('Bookings (E2E) — concurrency & integrity', () => {
     });
 
     it('N concurrent reserves then N concurrent confirms — all succeed, N booking rows written', async () => {
-      jest
-        .spyOn(ctx.paymentService as any, 'stripePaymentRequest')
-        .mockResolvedValue({ transactionId: 'txn_ok' });
+      jest.spyOn(ctx.paymentService as any, 'stripePaymentRequest').mockResolvedValue({ transactionId: 'txn_ok' });
 
       const users = await ctx.db.query<{ id: string }[]>(`SELECT id FROM "user"`);
       const tickets = ctx.seedTicketPool.slice(0, users.length);
 
       // Phase 1: every user reserves their own distinct ticket simultaneously
-      const reservations = await Promise.all(
-        users.map((u, i) => reserve(u.id, [tickets[i]])),
-      );
+      const reservations = await Promise.all(users.map((u, i) => reserve(u.id, [tickets[i]])));
 
       // Phase 2: all N confirms fire simultaneously
       const confirmResults = await Promise.all(reservations.map((r) => confirm(r)));
@@ -212,9 +213,7 @@ describe('Bookings (E2E) — concurrency & integrity', () => {
     });
 
     it('multi-ticket reservation happy path: two users reserve non-overlapping sets and both confirm', async () => {
-      jest
-        .spyOn(ctx.paymentService as any, 'stripePaymentRequest')
-        .mockResolvedValue({ transactionId: 'txn_ok' });
+      jest.spyOn(ctx.paymentService as any, 'stripePaymentRequest').mockResolvedValue({ transactionId: 'txn_ok' });
 
       // User 1 reserves tickets 0, 2 — User 2 reserves tickets 3, 5 (no overlap)
       const ticketsA = [ctx.seedTicketPool[0], ctx.seedTicketPool[2]];

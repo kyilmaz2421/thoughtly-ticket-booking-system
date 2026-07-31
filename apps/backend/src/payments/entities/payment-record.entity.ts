@@ -2,7 +2,7 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedCo
 
 import { WithCreatedAt } from '../../common/db/created-at.mixin';
 
-import { Booking } from './booking.entity';
+import { Booking } from '../../bookings/entities/booking.entity';
 
 // A PaymentRecord row only exists when a payment succeeded.
 // Failed payments leave no trace in the DB — the booking transaction rolls back entirely,

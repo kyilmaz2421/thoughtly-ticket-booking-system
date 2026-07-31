@@ -7,8 +7,8 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 
 import { Ticket } from '../events/entities/ticket.entity';
-import { DEFAULT_RESERVATION_TTL_SECONDS, RedisKey, RedisValue } from '../redis/redis.keys';
-import { RedisService } from '../redis/redis.service';
+import { DEFAULT_RESERVATION_TTL_SECONDS, RedisKey, RedisValue } from '../common/redis/redis.keys';
+import { RedisService } from '../common/redis/redis.service';
 
 import {
   BookingConfirmationDto,
@@ -18,7 +18,7 @@ import {
   ReservationDto,
 } from './dto/booking.dto';
 import { Booking } from './entities/booking.entity';
-import { PaymentService } from './payment.service';
+import { PaymentService } from '../payments/payment.service';
 
 @Injectable()
 export class BookingsService {

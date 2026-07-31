@@ -13,7 +13,7 @@ The only requirement is [Docker Desktop](https://www.docker.com/products/docker-
 NOTE: the docker compose runs all migrations and we have a SEED data migration that populates DB with relevant records to allow the app to be usable from the get go. In a real production environment we wouldn't seed the DB via a data migration like this.
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 This will:
@@ -94,30 +94,10 @@ pnpm migration:show
 
 ### What we test
 
-Tests run against real Postgres and real Redis — no mocks for infrastructure. The only thing stubbed is the Stripe payment gateway so tests don't make live charges.
+Tests run against real Postgres and real Redis via a docker-compose.test
 
-The seed data migration does a lot of heavy lifting here: it populates users, events, venues, and a full ticket inventory before any test runs. Tests resolve IDs from the live database rather than hardcoding them, so the suite works correctly regardless of which UUIDs Postgres assigns. Without seeding, there would be nothing to reserve or confirm against.
-In a real production system we wouldn't seed the database for tests via a migration — there would be a separate seeding process.
-
-Tests are split into two files by concern:
-
-**`test/events.e2e-spec.ts`** — reading contracts for the events controller:
-
-- `GET /events` returns a paginated list with the expected shape
-- `GET /events/:id/tickets` returns available tickets with the correct fields
-- Unknown event IDs return an empty result (not a 404)
-- A held ticket is absent from the list immediately after the hold is placed
-- A held ticket **stays absent across repeated reads** for the full TTL window — the Redis key is durable, not ephemeral
-- A confirmed (booked) ticket is absent from the list permanently
-
-**`test/bookings.e2e-spec.ts`** — the four hard concurrency and integrity guarantees:
-
-| Suite                     | What it proves                                                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Read consistency          | Concurrent confirms + a simultaneous `GET /tickets` — the read never returns a ticket being confirmed at that moment                                               |
-| Double-book prevention    | N users racing to reserve the same ticket → exactly 1 wins (201), all others get 409 — the `FOR UPDATE SKIP LOCKED` + Lua SETNX guard holds under real concurrency |
-| TTL self-expiry           | After the Redis key expires, confirm returns 410 and the ticket is immediately re-reservable by another user                                                       |
-| `@Transactional` rollback | Payment failure leaves zero `booking` rows and zero `payment_record` rows in the database; hold is released so the ticket can be re-reserved                       |
+The seed data migration does a lot of heavy lifting here: it populates users, events, venues, and a full ticket inventory before any test runs.
+Normally tests should have their own dedicated seeding system. We wouldn't seed the database for tests via a migration — there would be a separate seeding process.
 
 ### How to run
 
@@ -165,54 +145,39 @@ Availability is inferred by whether a `bookings` row references a ticket — no 
 
 Each record stores `user_id`, `booking_id`, `price_cents` (the total charge across all tickets in that batch), and the processor-returned `transaction_id`. Raw card details (number, CVV, expiry, postal code) are passed through to the payment processor but never persisted — PCI-DSS compliance.
 
-### Indexes
-
-Postgres UNIQUE constraints create implicit B-tree indexes, so `ticket(event_id, section, seat_number)` and `booking(ticket_id)` are already indexed. The explicit indexes added in `PerformanceIndexes1785391660069` cover the remaining hot paths:
-
-| Index                           | Table                        | Reason                                                    |
-| ------------------------------- | ---------------------------- | --------------------------------------------------------- |
-| `ticket_event_id_idx`           | `ticket(event_id)`           | Full-event ticket scans when no section filter is applied |
-| `booking_user_id_idx`           | `booking(user_id)`           | Booking history lookups by user                           |
-| `payment_record_booking_id_idx` | `payment_record(booking_id)` | FK join — Postgres does not auto-index FK columns         |
-| `payment_record_user_id_idx`    | `payment_record(user_id)`    | Payment history lookups by user                           |
-
-### Other trade-offs
-
-- **No `venue_id` on Ticket** — reachable via `ticket → event → venue` in one indexed hop. Denormalizing it would create an update anomaly with no benefit on the hot booking path.
-- **Capacity enforcement is application-level** — the service that generates tickets reads venue capacities and creates exactly that many rows in one transaction. A DB trigger would be the production hardening step.
-
----
-
 ## Backend Service Structure
 
-NestJS is an opinionated framework built around modules, and we chose to follow its conventions rather than fight them. Each feature is a self-contained module with its own controller, service, DTOs, and entities co-located together. This means the structure of the backend mirrors the data model directly — one module per domain concept.
+NestJS is an opinionated framework built around modules, so here just following that convention. Each feature is a self-contained module with its own controller, service, DTOs, and entities co-located together
 
 ```
 src/
-  events/          # Event, Ticket entities + GET /v1/events routes
+  events/          # TicketedEvent, Ticket entities + GET /v1/events routes
     dto/           # API response shapes owned by this module
     entities/
+      ticketed-event.entity.ts
+      ticket.entity.ts
   bookings/        # Booking entity + POST /v1/bookings routes + PaymentService
     dto/
     entities/
+      booking.entity.ts
+  payments/        # PaymentRecord entity — own module; in production would own payment history routes too
+    entities/
+      payment-record.entity.ts
   venues/          # Venue entity + VenueDto (imported by events)
     dto/
     entities/
+      venue.entity.ts
   users/           # User entity (imported by bookings)
     entities/
+      user.entity.ts
   hosts/           # EventHost entity + EventHostDto (imported by events)
     dto/
     entities/
-  common/          # Config and DataSource — app-level infrastructure, not a feature
+      event-host.entity.ts
+  common/          # Shared infrastructure — not a feature module
+    db/            # DataSource, pagination utils, entity mixins
+    redis/         # RedisModule + RedisService — consumed by events and bookings
 ```
-
-**Why this structure:**
-
-- `Ticket` lives inside `events/` because tickets are created and owned by the event lifecycle. There is no tickets endpoint independent of an event.
-- `Booking` has its own module because checkout is a distinct domain — it orchestrates across events, users, Redis holds, and payments.
-- `Venue`, `User`, and `EventHost` have no controllers yet — they are supporting entities imported by other modules. Their modules exist so TypeORM repositories can be injected via `forFeature()`.
-- Request DTOs (create/update input shapes) always live in the module that receives them. Response DTOs live in the module that owns the entity — `VenueDto` lives in `venues/dto/` and is imported by `events/` because the venue module is the authoritative source for how a venue is serialized.
-- `PaymentService` lives inside `bookings/` since payment is a step in the booking flow, not a standalone feature.
 
 ### Event Reservation Holds Flow
 
@@ -221,6 +186,8 @@ The booking flow is split into three coordinated stages, all held together by a 
 **1. Reading available tickets**
 
 When a user opens an event page, `GET /v1/events/:id/tickets` returns only tickets that are neither booked nor currently held. The query excludes permanently booked tickets at the database level with a `NOT EXISTS (SELECT 1 FROM booking WHERE ticket_id = ticket.id)` subquery. Then, in a single Redis `MGET` call across all returned rows, any ticket whose key exists in Redis (i.e. is currently reserved by someone) is filtered out before the response is sent. The result is a list of tickets that are genuinely available right now.
+
+**Multi-ticket selection and seat grouping.** Users select a quantity (1–8). The backend receives `?quantity=N` and returns tickets pre-grouped into runs of exactly `quantity` consecutive same-section adjacent-seat tickets. Each ticket in the response carries a `groupId` (1-based, resets per page) so the frontend can render seat groups without any additional logic.
 
 **2. Reserving a ticket — the Redis hold**
 
@@ -263,11 +230,11 @@ Redis is the primary tool for availability. Reservation holds are written to Red
 - **Creator-only access.** The stored value encodes `userId:token:expiresAt`. Cancel and confirm both verify that the `userId` in the request matches the `userId` in the stored value before taking any action. A leaked token is not sufficient — you also need to be the user who created the hold.
 - **Idempotent reserve.** If a client fires the same reserve request twice (lost response, React StrictMode double-fire, network retry), the Lua SETNX script detects the existing key and returns the stored value unchanged — same token, same expiry. The client reaches the same state as a first call. There is no way to create two holds for the same ticket under the same user.
 
-**The virtual waiting queue is the final availability guarantee.** No matter how aggressively we scale horizontally or vertically, a large enough surge — a Taylor Swift on-sale, a stadium drop — can exhaust capacity. Without a queue, the system crashes and no one gets in. With a queue, users are admitted in order at a rate the system can sustain. The queue is position-stable: users see their place and are admitted fairly, with no thundering herd against the database. The queue decouples the user-facing experience (responsive, never crashed) from the backend throughput (bounded, correct). Together with the Redis TTL hold, the queue is also what makes the concurrency model work at scale: only users who have already been admitted and received a valid reservation token can issue a confirm request. The database never sees speculative load.
+**The virtual waiting queue is the final availability guarantee.** No matter how aggressively we scale horizontally or vertically, a large enough surge can exhaust capacity. With a queue, users are admitted in order at a rate the system can sustain. The queue is position-stable: users see their place and are admitted fairly, with no overloading the database. The queue decouples the user-facing experience (responsive, never crashed) from the backend throughput (bounded, correct). Together with the Redis TTL hold, the queue is also what makes the concurrency model work at scale: only users who have already been admitted and received a valid reservation token can issue a confirm request. The database never sees speculative load.
 
 **For true multi-region 99.99%**, the infrastructure changes but the application model does not:
 
-- **Use Redis Global Datastore not just Redis.** Reservation writes go to the local primary; reads are served from the nearest replica. TTL expiry is synchronised globally. Lua scripts run on the primary and replicate atomically. One optimisation we have not yet applied: currently the raw Lua script is sent over the wire on every `EVAL` call. In production this should be replaced with `SCRIPT LOAD` at startup (which registers the script on the server and returns a SHA1 digest) followed by `EVALSHA` on every subsequent call — the wire payload drops from the full script body to a 40-character hash, which matters at high call rates.
+- **Use Redis Global Datastore.** Reservation writes go to the local primary; reads are served from the nearest replica. TTL expiry is synchronised globally. Lua scripts run on the primary and replicate atomically. One optimisation we have not yet applied: currently the raw Lua script is sent over the wire on every `EVAL` call. In production this should be replaced with `SCRIPT LOAD` at startup (which registers the script on the server and returns a SHA1 digest) followed by `EVALSHA` on every subsequent call — the wire payload drops from the full script body to a 40-character hash, which matters at high call rates.
 - **PostgreSQL → CockroachDB (or Aurora Global Database).** CockroachDB is a distributed SQL database that speaks the PostgreSQL wire protocol. It distributes rows across regions transparently, with a global writer and local read replicas. Our queries, migrations, and TypeORM entities work against it without modification. The `FOR UPDATE` lock and `UNIQUE` constraint semantics are preserved. Aurora Global Database is the AWS-managed alternative if the team prefers staying closer to RDS.
 
   **Trade-offs vs. staying on PostgreSQL:**
@@ -311,25 +278,3 @@ The three endpoints on the hot path are timed independently:
 **Edge deployment reduces network RTT for global users.** A user in Tokyo hitting a regional API endpoint in `ap-northeast-1` adds ~1ms of RTT vs. 150ms to `us-east-1`. Distributing the API layer globally is the single highest-leverage change for global p95.
 
 ---
-
-## Consistency & Concurrency Deep-Dive
-
-### Idempotency
-
-No explicit idempotency key header is needed. Each endpoint is naturally idempotent by design:
-
-- **Reserve** — the ticket IDs are the idempotency key. The Lua `SETNX` script detects existing keys and returns the stored value unchanged — same token, same `expiresAt`. A retry is indistinguishable from a first call.
-- **Confirm** — the `NOT EXISTS` guard rejects a second attempt with a 409. On the payment side, Stripe's own idempotency key (the booking ID) prevents double-charging.
-- **Cancel** — if the Redis key is already gone, the filter finds nothing to delete. Nothing happens and no error is raised.
-
-Even if the reserve response is lost in transit and the client never receives the `reservationToken`: on retry with the same `ticketIds`, the Lua script returns the existing hold for that user, so the client gets the token it missed. Full recovery with no additional mechanism.
-
-### Multi-ticket selection and seat grouping
-
-Users select a quantity (1–8). The backend receives `?quantity=N` and returns tickets pre-grouped into runs of exactly `quantity` consecutive same-section adjacent-seat tickets. Each ticket in the response carries a `groupId` (1-based, resets per page) so the frontend can render groups without any additional logic.
-
-The grouping algorithm is a single greedy pass over available tickets sorted by `(section ASC, seatNumber ASC)`. A pointer `j` extends forward as long as the next ticket is in the same section and exactly one seat ahead. If `j - i === quantity`, a complete group is emitted and `i` jumps to `j`. A single booked or held seat in the middle never blocks later valid groups.
-
-### TTL expiry at the confirm boundary
-
-If a Redis key expires between the MGET ownership check and the `SELECT FOR UPDATE`, the confirm handler has already passed validation and will attempt to insert a booking. This is safe: the `UNIQUE` constraint on `booking.ticket_id` is the hard correctness guarantee. If another user reserved and confirmed the same ticket in that window, the insert fails with a unique violation (`PG 23505`), `saveBookings()` catches it, and the response is a 409 — the booking rows are never committed. In practice this race is sub-millisecond on co-located infrastructure.
