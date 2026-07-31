@@ -102,6 +102,17 @@ Availability is inferred by whether a `bookings` row references a ticket — no 
 
 Each record stores `user_id`, `booking_id`, `price_cents` (the total charge across all tickets in that batch), and the processor-returned `transaction_id`. Raw card details (number, CVV, expiry, postal code) are passed through to the payment processor but never persisted — PCI-DSS compliance.
 
+### Indexes
+
+Postgres UNIQUE constraints create implicit B-tree indexes, so `ticket(event_id, section, seat_number)` and `booking(ticket_id)` are already indexed. The explicit indexes added in `PerformanceIndexes1785391660069` cover the remaining hot paths:
+
+| Index                           | Table                        | Reason                                                    |
+| ------------------------------- | ---------------------------- | --------------------------------------------------------- |
+| `ticket_event_id_idx`           | `ticket(event_id)`           | Full-event ticket scans when no section filter is applied |
+| `booking_user_id_idx`           | `booking(user_id)`           | Booking history lookups by user                           |
+| `payment_record_booking_id_idx` | `payment_record(booking_id)` | FK join — Postgres does not auto-index FK columns         |
+| `payment_record_user_id_idx`    | `payment_record(user_id)`    | Payment history lookups by user                           |
+
 ### Other trade-offs
 
 - **No `venue_id` on Ticket** — reachable via `ticket → event → venue` in one indexed hop. Denormalizing it would create an update anomaly with no benefit on the hot booking path.

@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { WithCreatedAt } from '../../common/db/created-at.mixin';
 import { Ticket } from '../../events/entities/ticket.entity';
@@ -6,6 +6,7 @@ import { User } from '../../users/entities/user.entity';
 
 @Entity('booking')
 @Unique('booking_ticket_id_uq', ['ticketId'])
+@Index('booking_user_id_idx', ['userId'])
 export class Booking extends WithCreatedAt {
   @PrimaryGeneratedColumn('uuid')
   id: string;

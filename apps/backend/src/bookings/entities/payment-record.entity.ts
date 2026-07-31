@@ -1,4 +1,4 @@
-import { Check, Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 import { WithCreatedAt } from '../../common/db/created-at.mixin';
 
@@ -8,6 +8,8 @@ import { Booking } from './booking.entity';
 // Failed payments leave no trace in the DB — the booking transaction rolls back entirely,
 // so there is nothing to reference and nothing to record.
 @Entity('payment_record')
+@Index('payment_record_booking_id_idx', ['bookingId'])
+@Index('payment_record_user_id_idx', ['userId'])
 export class PaymentRecord extends WithCreatedAt {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -1,4 +1,4 @@
-import { Check, Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { WithCreatedAt } from '../../common/db/created-at.mixin';
 import { enumToCheckList } from '../../common/db/util';
@@ -19,6 +19,7 @@ const VALID_SECTIONS = enumToCheckList(TicketSection);
 @Check('ticket_seat_number_chk', 'seat_number >= 0')
 @Check('ticket_section_chk', `section IN (${VALID_SECTIONS})`)
 @Unique('ticket_event_id_section_seat_number_uq', ['eventId', 'section', 'seatNumber'])
+@Index('ticket_event_id_idx', ['eventId'])
 export class Ticket extends WithCreatedAt {
   @PrimaryGeneratedColumn('uuid')
   id: string;
