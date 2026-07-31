@@ -2,7 +2,10 @@
 
 An end-to-end concert ticket booking system built with Next.js (frontend), NestJS + TypeORM (backend), and PostgreSQL.
 
+[Link to unlisted YouTube Demo Video](https://youtu.be/5FmNNWznINw)
+
 ![System Architecture](docs/architecture-diagram.png)
+
 
 ---
 
