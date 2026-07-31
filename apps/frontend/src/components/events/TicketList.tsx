@@ -79,9 +79,9 @@ export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
               key={ticket.id}
               ticket={ticket}
               onBook={onBook}
-              isHeld={heldTicketIds.includes(ticket.id)}
+              isHeld={ticket.heldByMe || heldTicketIds.includes(ticket.id)}
               isBlocked={
-                heldTicketIds.length > 0 && !heldTicketIds.includes(ticket.id)
+                heldTicketIds.length > 0 && !heldTicketIds.includes(ticket.id) && !ticket.heldByMe
               }
             />
           )}

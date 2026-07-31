@@ -58,10 +58,10 @@ export function EventDetailPage({ id }: { id: string }) {
     }
     setBookingTicket(ticket);
     createReservation.reset();
-    createReservation.mutate({
-      userId: currentUser.id,
-      ticketIds: [ticket.id],
-    });
+    createReservation.mutate(
+      { userId: currentUser.id, ticketIds: [ticket.id] },
+      { onSuccess: () => invalidateTickets() },
+    );
   }
 
   // X button — just dismisses the modal; the Redis hold stays alive
@@ -70,7 +70,7 @@ export function EventDetailPage({ id }: { id: string }) {
   }
 
   // Cancel Reservation button — releases the hold then closes
-  function handleCancel() {
+  async function handleCancel() {
     const reservation = createReservation.data;
     if (reservation && currentUser) {
       cancelReservation.mutate({
@@ -78,8 +78,8 @@ export function EventDetailPage({ id }: { id: string }) {
         body: { userId: currentUser.id, ticketIds: reservation.ticketIds },
       });
     }
-    setBookingTicket(null);
-    createReservation.reset();
+    // reload so we get the new fresh set of tickets
+    window.location.reload();
   }
 
   if (isLoading) {

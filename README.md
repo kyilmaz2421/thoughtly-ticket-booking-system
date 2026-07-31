@@ -29,6 +29,12 @@ To stop everything:
 docker compose down
 ```
 
+To stop and wipe the database (start fresh on next `up`):
+
+```bash
+docker compose down --volumes
+```
+
 ---
 
 ## Running locally (manual setup)

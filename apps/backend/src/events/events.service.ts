@@ -96,16 +96,25 @@ export class EventsService {
     // Single MGET round-trip instead of N individual GETs.
     // We check all returned rows (including the +1 lookahead) so pagination counts stay correct.
     const reservedTickets = await this.redisService.mget(dbTickets.map((t) => RedisKey.ticketReserved(t.id)));
-    const available = dbTickets.filter((_, i) => {
+    const heldByMeMap = new Map<string, string>(); // ticketId → expiresAt
+    const available = dbTickets.filter((ticket, i) => {
       const val = reservedTickets[i];
       if (val === null) return true;
-      return userId !== undefined && RedisValue.parseTicketReserved(val).userId === userId;
+      if (userId !== undefined && RedisValue.parseTicketReserved(val).userId === userId) {
+        heldByMeMap.set(ticket.id, RedisValue.parseTicketReserved(val).expiresAt);
+        return true;
+      }
+      return false;
     });
 
     const { page, hasMore, nextCursor } = paginate(available, take, (last) =>
       PaginatedTicketsDto.encodeCursor({ section: last.section, seatNumber: last.seatNumber }),
     );
 
-    return { data: page.map(TicketDto.from), nextCursor, hasMore };
+    return {
+      data: page.map((t) => TicketDto.from(t, heldByMeMap.has(t.id), heldByMeMap.get(t.id))),
+      nextCursor,
+      hasMore,
+    };
   }
 }

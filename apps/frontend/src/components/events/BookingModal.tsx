@@ -182,8 +182,8 @@ export function BookingModal({
               <ClockCircleOutlined style={{ color: timerColor }} />
               <Text style={{ color: timerColor, fontWeight: 600 }}>
                 {expired
-                  ? "Hold expired — please close and try again"
-                  : `Hold expires in ${formatTime(secondsLeft)}`}
+                  ? "Ticket reserved for you expired — please close and try again"
+                  : `Ticket that is reserved for you expires in ${formatTime(secondsLeft)}`}
               </Text>
             </div>
           )}

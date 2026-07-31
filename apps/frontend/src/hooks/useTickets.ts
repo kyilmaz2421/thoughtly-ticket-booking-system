@@ -19,6 +19,6 @@ export function useTickets(
   return useQuery({
     queryKey: ["tickets", eventId, section, cursor, limit, userId],
     queryFn: () => eventsService.getTickets(eventId, section, cursor, limit, userId),
-    enabled: !!eventId,
+    enabled: !!eventId && !!userId,
   });
 }

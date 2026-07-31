@@ -44,8 +44,9 @@ export class TicketsQueryDto {
   // Again this should be getting derived from JWT
   // but we pass it in order to determine if when getting tickets
   // one appears locked but it matches the "logged" in user it should show
+  @IsOptional()
   @IsUUID()
-  userId: string;
+  userId?: string;
 }
 
 // ---------------------------------------------------------------------------

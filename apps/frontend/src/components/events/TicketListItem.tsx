@@ -1,17 +1,47 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Button, List, Tag, Typography } from "antd";
 
 import { Ticket } from "@/services/events";
 
 const { Text } = Typography;
 
+function useCountdown(expiresAt?: string) {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const tick = () =>
+      setSecondsLeft(
+        Math.max(
+          0,
+          Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000),
+        ),
+      );
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+
+  return secondsLeft;
+}
+
 interface Props {
   ticket: Ticket;
   onBook: (ticket: Ticket) => void;
-  isHeld: boolean; // this ticket is held by the current user
-  isBlocked: boolean; // another ticket is held — this one is unclickable
+  isHeld: boolean;
+  isBlocked: boolean;
 }
 
 export function TicketListItem({ ticket, onBook, isHeld, isBlocked }: Props) {
+  const secondsLeft = useCountdown(isHeld ? ticket.heldUntil : undefined);
+
+  const countdownLabel =
+    secondsLeft !== null
+      ? `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`
+      : null;
+
   return (
     <List.Item
       actions={[
@@ -31,7 +61,12 @@ export function TicketListItem({ ticket, onBook, isHeld, isBlocked }: Props) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Tag>{ticket.section}</Tag>
             <Text>Seat {ticket.seatNumber}</Text>
-            {isHeld && <Tag color="orange">Ticket is On Hold for you</Tag>}
+            {isHeld && (
+              <Tag color="orange">
+                Ticket Reserved for you
+                {countdownLabel ? ` — ${countdownLabel}` : ""}
+              </Tag>
+            )}
           </div>
         }
       />

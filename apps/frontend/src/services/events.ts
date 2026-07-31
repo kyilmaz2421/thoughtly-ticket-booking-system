@@ -54,6 +54,8 @@ export interface Ticket {
   seatNumber: number;
   priceCents: number;
   priceDisplay: string;
+  heldByMe: boolean;
+  heldUntil?: string;
   createdAt: string;
 }
 

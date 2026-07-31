@@ -9,8 +9,10 @@ export class TicketDto extends BaseDto {
   seatNumber: number;
   priceCents: number;
   priceDisplay: string;
+  heldByMe: boolean;
+  heldUntil?: string;
 
-  static from(this: void, ticket: Ticket): TicketDto {
+  static from(this: void, ticket: Ticket, heldByMe = false, heldUntil?: string): TicketDto {
     return {
       id: ticket.id,
       eventId: ticket.eventId,
@@ -18,6 +20,8 @@ export class TicketDto extends BaseDto {
       seatNumber: ticket.seatNumber,
       priceCents: ticket.priceCents,
       priceDisplay: `$${(ticket.priceCents / 100).toFixed(2)}`,
+      heldByMe,
+      heldUntil,
       createdAt: ticket.createdAt.toISOString(),
     };
   }
