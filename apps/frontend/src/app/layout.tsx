@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 
 import { QueryProvider } from "@/providers/QueryProvider";
+import { AppHeader } from "@/components/AppHeader";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +19,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AntdRegistry>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            <AppHeader />
+            {children}
+          </QueryProvider>
         </AntdRegistry>
       </body>
     </html>

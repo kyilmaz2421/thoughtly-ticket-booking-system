@@ -16,7 +16,7 @@ import {
 // ---------------------------------------------------------------------------
 
 export class CreateReservationDto {
-  // This is mimicking calling user's userId that would normally be deerived from jwt
+  // This is simulating calling user's userId that would normally be deerived from jwt
   @IsUUID()
   userId: string;
 
@@ -61,7 +61,7 @@ export class PaymentDto {
 }
 
 export class ConfirmBookingDto {
-  // userId is required it is meant to mimick the userId derived from JWT auth
+  // userId is required it is meant to simulate the userId derived from JWT auth
   // userId proves that they are dealing with their own reservation and not someone elses
   // Without userId, anyone who obtains a leaked token can confirm/cancel someone else's reservation
   @IsUUID()
