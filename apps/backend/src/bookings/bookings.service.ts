@@ -2,7 +2,8 @@ import { randomUUID } from 'crypto';
 
 import { ConflictException, ForbiddenException, GoneException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
+
 import { Transactional } from 'typeorm-transactional';
 
 import { Ticket } from '../events/entities/ticket.entity';
@@ -121,7 +122,7 @@ export class BookingsService {
       const bookings: Booking[] = this.bookingRepository.create(
         tickets.map((ticket) => ({ userId, ticketId: ticket.id })),
       );
-      await this.bookingRepository.save(bookings);
+      await this.saveBookings(bookings);
 
       // Step 4: Charge the total across all bookings — when this throws, the transaction
       // fails and all booking rows roll back automatically (@Transactional).
@@ -150,6 +151,18 @@ export class BookingsService {
       // The only footgun: if this block itself throws, it replaces the original error —
       // so keep finally side-effect-only (no business logic, just cleanup).
       await this.redisService.del(...ticketKeys);
+    }
+  }
+
+  // Wraps repository.save and translates a unique constraint violation (PG 23505) into a
+  // meaningful 409 so the caller knows a duplicate booking was attempted, not a server crash.
+  private async saveBookings(bookings: Booking[]): Promise<Booking[]> {
+    try {
+      return await this.bookingRepository.save(bookings);
+    } catch (err) {
+      if (err instanceof QueryFailedError && (err as any).code === '23505')
+        throw new ConflictException('One or more tickets are already booked');
+      throw err;
     }
   }
 }

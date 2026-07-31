@@ -8,6 +8,9 @@ An end-to-end concert ticket booking system built with Next.js (frontend), NestJ
 
 The only requirement is [Docker Desktop](https://www.docker.com/products/docker-desktop/). No Node, no Postgres, no Redis needed on your machine.
 
+NOTE: the docker compose runs all migrations and we have a SEED data migration that populates DB with relevant records to allow the app to be usable from the get go
+-- In a real production environment we wouldn't seed the DB via a data migration like this
+
 ```bash
 docker compose up
 ```
@@ -82,6 +85,52 @@ pnpm migration:revert
 
 # Show migration status
 pnpm migration:show
+```
+
+---
+
+## Testing
+
+### What we test
+
+Tests run against real Postgres and real Redis — no mocks for infrastructure. The only thing stubbed is the Stripe payment gateway so tests don't make live charges.
+
+The seed data migration does a lot of heavy lifting here: it populates users, events, venues, and a full ticket inventory before any test runs. Tests resolve IDs from the live database rather than hardcoding them, so the suite works correctly regardless of which UUIDs Postgres assigns. Without seeding, there would be nothing to reserve or confirm against.
+-- In a real production system we wouldn't have a data migration taht seeds the database for tests, there would be a seperate dtaabasse seeding process
+
+Tests are split into two files by concern:
+
+**`test/events.e2e-spec.ts`** — reading contracts for the events controller:
+
+- `GET /events` returns a paginated list with the expected shape
+- `GET /events/:id/tickets` returns available tickets with the correct fields
+- Unknown event IDs return an empty result (not a 404)
+- A held ticket is absent from the list immediately after the hold is placed
+- A held ticket **stays absent across repeated reads** for the full TTL window — the Redis key is durable, not ephemeral
+- A confirmed (booked) ticket is absent from the list permanently
+
+**`test/bookings.e2e-spec.ts`** — the four hard concurrency and integrity guarantees:
+
+| Suite                     | What it proves                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read consistency          | Concurrent confirms + a simultaneous `GET /tickets` — the read never returns a ticket being confirmed at that moment                                               |
+| Double-book prevention    | N users racing to reserve the same ticket → exactly 1 wins (201), all others get 409 — the `FOR UPDATE SKIP LOCKED` + Lua SETNX guard holds under real concurrency |
+| TTL self-expiry           | After the Redis key expires, confirm returns 410 and the ticket is immediately re-reservable by another user                                                       |
+| `@Transactional` rollback | Payment failure leaves zero `booking` rows and zero `payment_record` rows in the database; hold is released so the ticket can be re-reserved                       |
+
+### How to run
+
+The only prerequisite is [Docker Desktop](https://www.docker.com/products/docker-desktop/). The script starts isolated test containers (Postgres on 5433, Redis on 6380), runs the full suite, then tears down everything — including on failure.
+
+```bash
+pnpm test:e2e:docker
+```
+
+If you already have the test containers running from a previous session, you can skip the Docker management and run Jest directly:
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+pnpm test:e2e
 ```
 
 ---
