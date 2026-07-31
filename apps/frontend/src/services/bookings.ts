@@ -17,10 +17,14 @@ export interface Reservation {
 }
 
 export interface CancelReservationRequest {
+  // Required alongside the token — token proves which tickets, userId proves who owns them.
+  userId: string;
   ticketIds: string[];
 }
 
 export interface ConfirmBookingRequest {
+  // Required alongside the token — token proves which tickets, userId proves who owns them.
+  userId: string;
   ticketIds: string[];
   email: string;
   payment: {

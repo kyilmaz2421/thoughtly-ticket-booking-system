@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 import { decodeCursor, encodeCursor } from '../../common/db/paginate.util';
 import { BaseDto } from '../../common/dto/base.dto';
@@ -40,6 +40,12 @@ export class TicketsQueryDto {
   @IsInt()
   @Min(1)
   limit?: number;
+
+  // Again this should be getting derived from JWT
+  // but we pass it in order to determine if when getting tickets
+  // one appears locked but it matches the "logged" in user it should show
+  @IsUUID()
+  userId: string;
 }
 
 // ---------------------------------------------------------------------------

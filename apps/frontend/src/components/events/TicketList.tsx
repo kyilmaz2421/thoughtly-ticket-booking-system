@@ -14,9 +14,10 @@ interface Props {
   eventId: string;
   onBook: (ticket: Ticket) => void;
   heldTicketIds: string[];
+  userId?: string;
 }
 
-export function TicketList({ eventId, onBook, heldTicketIds }: Props) {
+export function TicketList({ eventId, onBook, heldTicketIds, userId }: Props) {
   const [section, setSection] = useState("All");
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorStack, setCursorStack] = useState<string[]>([]);
@@ -25,6 +26,8 @@ export function TicketList({ eventId, onBook, heldTicketIds }: Props) {
     eventId,
     section === "All" ? undefined : section,
     cursor,
+    undefined,
+    userId,
   );
 
   function nextPage() {

@@ -27,7 +27,7 @@ function buildTickets(event: Event, vip: number, fr: number, ga: number): Partia
   return tickets;
 }
 
-export class SeedEventData1753000000000 implements MigrationInterface {
+export class SeedEventData1785391660068 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const m = queryRunner.manager;
 

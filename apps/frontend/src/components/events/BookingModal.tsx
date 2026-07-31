@@ -87,6 +87,7 @@ export function BookingModal({
     confirmBooking.mutate({
       reservationToken: reservation.reservationToken,
       body: {
+        userId: reservation.userId,
         ticketIds: [ticket.id],
         email: values.email,
         payment: {

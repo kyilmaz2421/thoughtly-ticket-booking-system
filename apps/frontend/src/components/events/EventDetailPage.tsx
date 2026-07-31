@@ -72,10 +72,10 @@ export function EventDetailPage({ id }: { id: string }) {
   // Cancel Reservation button — releases the hold then closes
   function handleCancel() {
     const reservation = createReservation.data;
-    if (reservation) {
+    if (reservation && currentUser) {
       cancelReservation.mutate({
         reservationToken: reservation.reservationToken,
-        body: { ticketIds: reservation.ticketIds },
+        body: { userId: currentUser.id, ticketIds: reservation.ticketIds },
       });
     }
     setBookingTicket(null);
@@ -183,6 +183,7 @@ export function EventDetailPage({ id }: { id: string }) {
         eventId={id}
         onBook={handleBook}
         heldTicketIds={heldTicketIds}
+        userId={currentUser?.id}
       />
 
       <BookingModal

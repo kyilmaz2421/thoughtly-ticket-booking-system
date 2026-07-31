@@ -3,13 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { paginate } from '../common/db/paginate.util';
-import { RedisKey } from '../redis/redis.keys';
+import { RedisKey, RedisValue } from '../redis/redis.keys';
 import { RedisService } from '../redis/redis.service';
 
-import { EventDetailDto, EventSummaryDto, PaginatedEventsDto } from './dto/event.dto';
+import { EventDetailDto, EventSummaryDto, PaginatedEventsDto, TicketsQueryDto } from './dto/event.dto';
 import { PaginatedTicketsDto, TicketDto } from './dto/ticket.dto';
 import { Event } from './entities/event.entity';
-import { Ticket, TicketSection } from './entities/ticket.entity';
+import { Ticket } from './entities/ticket.entity';
 
 const DEFAULT_LIMIT = 10;
 
@@ -70,12 +70,8 @@ export class EventsService {
     return EventDetailDto.from(event);
   }
 
-  async findTickets(
-    eventId: string,
-    section?: TicketSection,
-    cursor?: string,
-    limit = DEFAULT_LIMIT,
-  ): Promise<PaginatedTicketsDto> {
+  async findTickets(eventId: string, query: TicketsQueryDto): Promise<PaginatedTicketsDto> {
+    const { section, cursor, limit = DEFAULT_LIMIT, userId } = query;
     const take = limit + 1;
     const qb = this.ticketRepository
       .createQueryBuilder('ticket')
@@ -85,9 +81,7 @@ export class EventsService {
       .addOrderBy('ticket.seatNumber', 'ASC')
       .take(take);
 
-    if (section) {
-      qb.andWhere('ticket.section = :section', { section });
-    }
+    if (section) qb.andWhere('ticket.section = :section', { section });
 
     if (cursor) {
       const { seatNumber, section: cursorSection } = PaginatedTicketsDto.decodeCursor(cursor);
@@ -101,8 +95,12 @@ export class EventsService {
 
     // Single MGET round-trip instead of N individual GETs.
     // We check all returned rows (including the +1 lookahead) so pagination counts stay correct.
-    const heldFlags = await this.redisService.mget(dbTickets.map((t) => RedisKey.ticketReserved(t.id)));
-    const available = dbTickets.filter((_, i) => heldFlags[i] === null);
+    const reservedTickets = await this.redisService.mget(dbTickets.map((t) => RedisKey.ticketReserved(t.id)));
+    const available = dbTickets.filter((_, i) => {
+      const val = reservedTickets[i];
+      if (val === null) return true;
+      return userId !== undefined && RedisValue.parseTicketReserved(val).userId === userId;
+    });
 
     const { page, hasMore, nextCursor } = paginate(available, take, (last) =>
       PaginatedTicketsDto.encodeCursor({ section: last.section, seatNumber: last.seatNumber }),

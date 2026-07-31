@@ -72,12 +72,13 @@ export class BookingsService {
     const ticketKeys = dto.ticketIds.map(RedisKey.ticketReserved);
     const storedValues = await this.redisService.mget(ticketKeys);
 
-    // The reservationToken is the ownership proof — all tickets in a reservation share the same token.
-    // Only delete keys whose stored token matches; ignore expired or foreign keys silently.
+    // The token proves which tickets are held; userId proves the caller owns them.
+    // Both must match — token-only is insufficient because a leaked token could be used by anyone.
     const keysToDelete = ticketKeys.filter((_, i) => {
       const stored = storedValues[i];
       if (!stored) return false;
-      return RedisValue.parseTicketReserved(stored).reservationToken === reservationToken;
+      const parsed = RedisValue.parseTicketReserved(stored);
+      return parsed.reservationToken === reservationToken && parsed.userId === dto.userId;
     });
 
     if (keysToDelete.length > 0) await this.redisService.del(...keysToDelete);
@@ -93,8 +94,10 @@ export class BookingsService {
 
     const parsed = storedValues.map((s) => RedisValue.parseTicketReserved(s!));
 
-    if (parsed.some((p) => p.reservationToken !== reservationToken))
-      throw new ForbiddenException('Reservation does not belong to this token');
+    // Token proves which tickets are held; userId proves the caller owns them.
+    // Both must match — a leaked token alone is not sufficient to confirm or cancel.
+    if (parsed.some((p) => p.reservationToken !== reservationToken || p.userId !== dto.userId))
+      throw new ForbiddenException('Reservation token or userId does not match');
 
     const { userId } = parsed[0];
 

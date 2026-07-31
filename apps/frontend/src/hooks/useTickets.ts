@@ -14,10 +14,11 @@ export function useTickets(
   section?: string,
   cursor?: string,
   limit = 10,
+  userId?: string,
 ) {
   return useQuery({
-    queryKey: ["tickets", eventId, section, cursor, limit],
-    queryFn: () => eventsService.getTickets(eventId, section, cursor, limit),
+    queryKey: ["tickets", eventId, section, cursor, limit, userId],
+    queryFn: () => eventsService.getTickets(eventId, section, cursor, limit, userId),
     enabled: !!eventId,
   });
 }

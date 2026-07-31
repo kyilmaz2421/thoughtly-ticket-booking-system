@@ -20,6 +20,6 @@ export class EventsController {
 
   @Get(':id/tickets')
   findTickets(@Param('id') eventId: string, @Query() query: TicketsQueryDto): Promise<PaginatedTicketsDto> {
-    return this.eventsService.findTickets(eventId, query.section, query.cursor, query.limit);
+    return this.eventsService.findTickets(eventId, query);
   }
 }
