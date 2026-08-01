@@ -102,14 +102,15 @@ export class BookingsService {
 
     const { userId } = parsed[0];
 
-    // Step 2: SELECT FOR UPDATE SKIP LOCKED + NOT EXISTS guard
-    // SKIP LOCKED: if another transaction is mid-confirm on the same ticket, skip it (returns fewer rows → 409)
-    // NOT EXISTS: catches tickets already booked in a prior transaction (Redis TTL lagged behind DB)
+    // Step 2: Retrieve all tickets
+    // Correctness is guaranteed by the UNIQUE constraint on booking.ticket_id: if two confirms
+    // race past this check, exactly one insert commits; the other gets Unique Violation → 409.
+    // A unique violation is very cheap on the database therefore is the best way to enforce the invariant
+    // As opposed to doing a LOCK which would cause concurrent requests to queue, risking pool exhaustion at scale
+    // OR even a SKIP LOCKED which would fail fast, but can cause false negatives and is more expensive then just failing on unique violation
     const tickets = await this.bookingRepository.manager
       .createQueryBuilder(Ticket, 'ticket')
       .where('ticket.id IN (:...ids)', { ids: dto.ticketIds })
-      .andWhere('NOT EXISTS (SELECT 1 FROM booking b WHERE b.ticket_id = ticket.id)')
-      .setLock('pessimistic_write') // FOR UPDATE — waits for any concurrent confirm to finish, then NOT EXISTS catches the duplicate
       .getMany();
 
     if (tickets.length !== dto.ticketIds.length)

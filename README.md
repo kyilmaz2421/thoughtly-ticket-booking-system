@@ -6,6 +6,17 @@ An end-to-end concert ticket booking system built with Next.js (frontend), NestJ
 
 ![System Architecture](docs/architecture-diagram.png)
 
+---
+
+> **⚠️ Post-submission fix — concurrency bug in `confirmBooking`**
+>
+> After submitting, I noticed a small error where I had designed the booking system to use `FOR UPDATE SKIP LOCKED` on retrieving tickets before booking so that we would always skip mid-confirmation locks. The skip had been documented in the README, referenced in code comments, and had been the intention. Upon further review I realized I had mistakenly not applied it, the code used plain `SELECT FOR UPDATE` (`pessimistic_write`), causing concurrent confirms to queue and wait rather than fail fast. This caused all concurrent confirms on the same ticket to **queue and wait** behind the lock rather than fail fast, which under high concurrency leads to connection pool exhaustion and cascading timeouts.
+>
+> As I investigated the correct fix, I realized that `SKIP LOCKED` itself would not have been the right solution either. Letting the database fail on a unique constraint is much more efficient and scalable than `SKIP LOCKED`. If N requests try to write, only one wins and the rest get a rejection. This is a very fast way to fail because, from what I researched, the rejection is executed entirely in high-speed RAM using B-tree index lookups. The losers block at the INSERT until the winner commits, then receive a Unique Violation and never reach Stripe. Meanwhile, `SKIP LOCKED` and `NOT EXISTS` make reads in an already highly contentious system all the more complex. There is also a correctness failure: if Transaction A's payment fails and rolls back, `SKIP LOCKED` has already rejected Transaction B with a 409 — a perfectly valid checkout lost for a seat that remained available. Relying on the unique constraint is the best way to optimize for maximum concurrency and throughput. While `SKIP LOCKED` and `NOT EXISTS` allow for a fail-fast system which on its face appears better, but after some scrutiny it is worse. By failing fast and preemptively rejecting certain users, you are at scale forcing more restarts and not moving them through the system, which reduces throughput.
+>
+> **The fix:** I removed `SKIP LOCKED` entirely and the `NOT EXISTS` check, making the request as lightweight as possible and relying entirely on the `UNIQUE` constraint on `booking.ticket_id`. If two confirms race past the Redis check simultaneously, exactly one insert commits and the other receives a Unique Violation returned as a 409. I also updated the README and other code references to reflect this. See `bookings.service.ts` Step 2 for the full comment.
+>
+> Furthermore, all this research has made me reconsider my approach around storing tickets as an entity, but that can be a discussion for later.
 
 ---
 
@@ -131,7 +142,7 @@ A key design decision in this system is that every physical seat gets its own `t
 
 - **Database-level double-booking prevention.** The `UNIQUE` constraint on `booking.ticket_id` makes two bookings for the same seat physically impossible — the database enforces it, not our code. There is no counter to decrement incorrectly, no race on a shared integer.
 - **Auditability.** Every ticket has a stable identity from the moment the event is created. Its full lifecycle — available → held → booked — is traceable as concrete state changes on a concrete row, not inferred from the absence or presence of other rows.
-- **Simpler concurrency.** `SELECT … FOR UPDATE SKIP LOCKED` works directly on ticket rows. We lock the exact seat being claimed, not a shared capacity counter. Concurrent requests on different seats never contend with each other.
+- **Simpler concurrency.** Concurrent confirms on the same ticket never queue — there is no lock. The `UNIQUE` constraint on `booking.ticket_id` is the hard guarantee: if two transactions both race past the Redis check and attempt an insert, exactly one commits and the other receives a Unique violation as a 409. No lock, no queue, no contention on the hot path.
 - **Correctness that survives partial failures.** If a confirm rolls back mid-flight, the ticket row is still there, still in its pre-booking state. Nothing to revert, no counter to repair.
 
 **The cost** is storage. At scale — thousands of events, large venues — this is hundreds of millions (if not Billions) of rows over time. We accepted this because tickets are written once at event creation and infrequently updated. The write cost is paid upfront and infrequently. At true scale, range partitioning on `event_id` would keep individual partition sizes bounded without changing the query model at all. And critically, once an event is over its tickets are never queried again — they have no role in the live booking flow. This makes archival straightforward: past-event partitions can be detached from the live database and moved to cold storage, leaving the live database dealing only with current and upcoming events. The row count that actually matters to query performance is therefore bounded by the number of active events at any given time, not the total historical volume.
@@ -140,7 +151,7 @@ The summary: we traded storage for correctness, storage is cheap, and the data t
 
 ### Double booking prevention
 
-Availability is inferred by whether a `bookings` row references a ticket — no status flag. The `UNIQUE` constraint on `bookings.ticket_id` is the hard database-level guarantee: two bookings for the same ticket are physically impossible. During the booking flow we use `SELECT ... FOR UPDATE SKIP LOCKED` to atomically claim a ticket — concurrent requests skip locked rows rather than queueing, which scales without contention.
+Availability is inferred by whether a `booking` row references a ticket. The `UNIQUE` constraint on `booking.ticket_id` is the hard database-level guarantee: two bookings for the same ticket are physically impossible. The confirm path inserts directly with no row-level lock. If two confirms race past the Redis check simultaneously, exactly one insert commits; the other hits the `UNIQUE` constraint.
 
 ### Payment records
 
@@ -202,7 +213,7 @@ The hold is immutable once created. The `expiresAt` timestamp is embedded in the
 
 **3. Confirming the booking — closing the hold**
 
-When the user submits payment, `POST /v1/bookings/reservations/:token/confirm` validates that every Redis key still exists and belongs to this user and token. If any key has expired or belongs to a different user, the request is rejected. Once ownership is confirmed, the backend runs `SELECT … FOR UPDATE SKIP LOCKED` on the tickets to guard against concurrent confirms.
+When the user submits payment, `POST /v1/bookings/reservations/:token/confirm` validates that every Redis key still exists and belongs to this user and token. If any key has expired or belongs to a different user, the request is rejected. Once ownership is confirmed, the backend queries the tickets and inserts directly with no lock — correctness under concurrent confirms is enforced entirely by the `UNIQUE` constraint on `booking.ticket_id`. Locking would cause concurrent requests to queue rather than proceed independently, risking connection pool exhaustion at high concurrency.
 
 The confirm handler is wrapped in `@Transactional()`. Inside that transaction:
 
@@ -223,7 +234,7 @@ After a successful confirm, the ticket disappears from both systems: the `NOT EX
 
 Ticket booking sits in an unusual position in the CAP theorem: most systems can accept a trade-off between consistency and availability, but here we need both at the same time. A double-booking is a correctness failure with real consequences. A crash during a high-demand on-sale is also a big failure. The design layers these guarantees independently so neither one undercuts the other.
 
-**Consistency is enforced at the database level, not the application level.** The `UNIQUE` constraint on `booking.ticket_id` is the hard floor — two bookings for the same seat are physically impossible regardless of what happens at the application layer. `SELECT … FOR UPDATE SKIP LOCKED` ensures concurrent confirms on the same ticket do not queue up and race; one wins, the other skips. `@Transactional()` ensures a payment failure cannot leave partial state in the database. These guarantees hold regardless of how many application servers are running.
+**Consistency is enforced at the database level, not the application level.** The `UNIQUE` constraint on `booking.ticket_id` is the hard floor — two bookings for the same seat are physically impossible regardless of what happens at the application layer. The confirm path uses no row-level lock: concurrent confirms on the same ticket race to insert, exactly one commits, and the other hits `PG 23505` which is caught and returned as a 409. No lock means no queue and no connection pool exhaustion under high concurrency. `@Transactional()` ensures a payment failure cannot leave partial state in the database. These guarantees hold regardless of how many application servers are running.
 
 **Availability is achieved through a distributed cache layer and a virtual waiting queue.**
 
@@ -238,13 +249,13 @@ Redis is the primary tool for availability. Reservation holds are written to Red
 **For true multi-region 99.99%**, the infrastructure changes but the application model does not:
 
 - **Use Redis Global Datastore.** Reservation writes go to the local primary; reads are served from the nearest replica. TTL expiry is synchronised globally. Lua scripts run on the primary and replicate atomically. One optimisation we have not yet applied: currently the raw Lua script is sent over the wire on every `EVAL` call. In production this should be replaced with `SCRIPT LOAD` at startup (which registers the script on the server and returns a SHA1 digest) followed by `EVALSHA` on every subsequent call — the wire payload drops from the full script body to a 40-character hash, which matters at high call rates.
-- **PostgreSQL → CockroachDB (or Aurora Global Database).** CockroachDB is a distributed SQL database that speaks the PostgreSQL wire protocol. It distributes rows across regions transparently, with a global writer and local read replicas. Our queries, migrations, and TypeORM entities work against it without modification. The `FOR UPDATE` lock and `UNIQUE` constraint semantics are preserved. Aurora Global Database is the AWS-managed alternative if the team prefers staying closer to RDS.
+- **PostgreSQL → CockroachDB (or Aurora Global Database).** CockroachDB is a distributed SQL database that speaks the PostgreSQL wire protocol. Aurora Global Database is the AWS-managed alternative if the team prefers staying closer to RDS.
 
   **Trade-offs vs. staying on PostgreSQL:**
 
-  _Staying on PostgreSQL_ is the right call for most deployments. It is the most battle-tested transactional database available, with deep support, predictable locking behaviour, and no operational surprises. A single well-tuned Postgres primary with read replicas handles enormous write throughput — the confirm path is a single-row insert on an indexed table, and Postgres can sustain tens of thousands of such inserts per second on modest hardware. The `FOR UPDATE SKIP LOCKED` and `UNIQUE` semantics we depend on are native, fully specified, and have been tested by decades of production usage. The cost of staying is that the primary is a single node: if it goes down, writes are unavailable until failover completes (typically 30–60s for managed Postgres like RDS). That failover window is the main availability risk.
+  _Staying on PostgreSQL_ is the right call for most deployments. It is the most battle-tested transactional database available, with deep support, predictable locking behaviour, and no operational surprises. A single well-tuned Postgres primary with read replicas handles enormous write throughput — the confirm path is a single-row insert on an indexed table, and Postgres can sustain tens of thousands of such inserts per second on modest hardware. The cost of staying is that the primary is a single node: if it goes down, writes are unavailable until failover completes (typically 30–60s for managed Postgres like RDS). That failover window is the main availability risk.
 
-  _CockroachDB_ removes the single-node write bottleneck by distributing rows across nodes and regions, with each node able to accept writes. Writes are serialisable by default (stronger than Postgres's default `READ COMMITTED`), which eliminates an entire class of race condition. The practical cost is latency: distributed transactions must coordinate across nodes, which adds round-trips. A confirm that touches rows in `us-east` and `eu-west` pays the cross-region RTT on every transaction. CockroachDB also has meaningful dialect gaps — `SKIP LOCKED` is supported but some advisory lock patterns, certain DDL operations, and a handful of TypeORM quirks require workarounds. It is a more complex system to operate and debug than vanilla Postgres.
+  _CockroachDB_ removes the single-node write bottleneck by distributing rows across nodes and regions, with each node able to accept writes. Writes are serialisable by default (stronger than Postgres's default `READ COMMITTED`), which eliminates an entire class of race condition. The practical cost is latency: distributed transactions must coordinate across nodes, which adds round-trips. A confirm that touches rows in `us-east` and `eu-west` pays the cross-region RTT on every transaction. It is a more complex system to operate and debug than vanilla Postgres.
 
   _Aurora Global Database_ is a middle path: it is Postgres-compatible, managed by AWS, and replicates to up to five read regions with sub-second lag. The trade-off is that there is still exactly one writer region — a user in Tokyo confirming a booking must have their write routed to `us-east-1` (or wherever the primary lives). For reads this is excellent; for write latency it is no better than a well-configured Postgres primary with a connection pooler. The benefit over self-managed Postgres is the managed failover: Aurora can promote a read replica to primary in under 30 seconds automatically, which is materially better than the 60s+ RDS failover window.
 
@@ -262,7 +273,7 @@ Redis is the primary tool for availability. Reservation holds are written to Red
 
 **NestJS is stateless and scales horizontally.** Adding application servers behind a load balancer requires no coordination. There is no in-process state; all shared state lives in Postgres and Redis. A deployment that doubles server count doubles throughput linearly.
 
-**Ticket rows partition naturally.** At scale, a single event may have hundreds of thousands of tickets. Partitioning `ticket` by `event_id` keeps each partition bounded and allows `FOR UPDATE SKIP LOCKED` to work within a single partition boundary without cross-partition locking overhead. This is a schema-level change with no application code impact.
+**Ticket rows partition naturally.** At scale, a single event may have hundreds of thousands of tickets. Partitioning `ticket` by `event_id` keeps each partition bounded and ensures any future lock operations stay within a single partition boundary. This is a schema-level change with no application code impact.
 
 ---
 
@@ -274,7 +285,7 @@ The three endpoints on the hot path are timed independently:
 
 **`POST /bookings/reservations`** — one database read to fast-fail on already-booked tickets, then one Lua SETNX script in Redis (atomic, O(N) in ticket count). For a typical 1–4 ticket selection, this is sub-millisecond in Redis. End-to-end well under 50ms.
 
-**`POST /bookings/reservations/:token/confirm`** — Redis MGET for ownership check, `SELECT … FOR UPDATE`, `INSERT` into `booking`, payment call, `INSERT` into `payment_record`, Redis DEL. The database operations are single-row inserts on indexed tables. The bottleneck is the payment processor round-trip — against the mock this is zero, against Stripe this is ~200–400ms. The 500ms p95 budget comfortably accommodates a real Stripe call on regional infrastructure. `@Transactional()` ensures all operations share a single connection checkout from the pool; there is no per-step connection overhead.
+**`POST /bookings/reservations/:token/confirm`** — Redis MGET for ownership check, `SELECT` tickets, `INSERT` into `booking`, payment call, `INSERT` into `payment_record`, Redis DEL. The database operations are single-row inserts on indexed tables. The bottleneck is the payment processor round-trip — against the mock this is zero, against Stripe this is ~200–400ms. The 500ms p95 budget comfortably accommodates a real Stripe call on regional infrastructure. `@Transactional()` ensures all operations share a single connection checkout from the pool; there is no per-step connection overhead.
 
 **Indexes cover every hot path.** `ticket(event_id)` for ticket scans, `booking(ticket_id)` via the UNIQUE constraint for the `NOT EXISTS` subquery, `payment_record(booking_id)` and `payment_record(user_id)` for FK joins and history lookups. No hot query does a sequential scan.
 
